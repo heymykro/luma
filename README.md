@@ -14,6 +14,11 @@ small, free, open-source menu-bar app that just does the thing:
 - Works with **any keyboard**: standard brightness keys (HID consumer usages), Apple-style media keys (including rotary knobs on QMK/VIA boards), and optional F14/F15 legacy keys.
 - **Notch-style HUD** (black pill, top of screen, or vertical from the left/right edge), scroll the menu bar icon to adjust, hotplug detection with brightness restore, launch at login, no telemetry, no accounts, no caps.
 
+## Roadmap
+
+What's next, what's parked, and the known gaps: [ROADMAP.md](ROADMAP.md).
+Feature ideas go in [issues](https://github.com/heymykro/luma/issues/new).
+
 ## Requirements
 
 **Apple Silicon only** (M1 and later), macOS 13 Ventura or newer.
