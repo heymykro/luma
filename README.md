@@ -53,17 +53,13 @@ complain: right-click **Luma.app → Open → Open**, or clear quarantine with
 
 ## Repository layout
 
-Two implementations live here:
+The app lives in [`Luma/`](Luma/): AppKit and SwiftUI on Swift Package Manager,
+no webview, no dependencies, a bundle under 1 MB.
 
-| Path | What | Status |
-|---|---|---|
-| [`Luma/`](Luma/) | **Native Swift app** (AppKit + SwiftUI, Swift Package Manager) | The release. ~1.4 MB bundle, no webview. |
-| [`poc/tauri/`](poc/tauri/) | Tauri v2 proof of concept (Rust + web UI) | Frozen. Where the engine was designed and verified; kept as reference. |
-
-The Swift app is a faithful port of the POC's engine; the Rust sources are
-the annotated spec for every constant and edge case (retry counts, write
-spacing, race guards). If you change engine behavior in `Luma/`, check the
-matching Rust file for the reasoning first.
+Every engine constant carries its reasoning in a comment beside it, because
+almost none of it is documented anywhere: retry counts, write spacing, the
+checksum seeds, why reads pass a different sub-address than writes. Change one
+and read the comment first.
 
 ### Swift app layout (`Luma/Sources/Luma/`)
 
@@ -115,17 +111,7 @@ swift build     # compile check / debug binary
 open Package.swift  # to work in Xcode
 ```
 
-### Tauri POC
-
-Requires Rust (stable), Node 20+, pnpm.
-
-```sh
-cd poc/tauri
-pnpm install
-pnpm tauri dev
-```
-
-Dev note (both versions): rebuilding an ad-hoc-signed binary resets its
+Dev note: rebuilding an ad-hoc-signed binary resets its
 Accessibility grant (`tccutil reset Accessibility <bundle id>` clears the
 stale entry).
 

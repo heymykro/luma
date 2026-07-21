@@ -18,6 +18,11 @@ final class DDCWorker {
     private var queue: [Message] = []
     private var monitors: [CGDirectDisplayID: (service: DDCService, max: UInt16)] = [:]
 
+    /// Minimum gap between hardware writes. Monitors accept DDC far slower
+    /// than a slider drag or a held key produces values; without this the bus
+    /// floods and panels start ignoring or mis-applying writes. 50ms is the
+    /// interval the DDC/CI spec allows between messages, and it is why writes
+    /// coalesce last-value-wins rather than queueing.
     private static let writeSpacing: TimeInterval = 0.05
     /// A value is retried across heal-rebuilds up to this many passes before we
     /// give up (a truly dead monitor / DDC-off panel must not spin the loop).

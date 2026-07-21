@@ -248,7 +248,10 @@ final class DDCService {
     /// reads fail on Apple Silicon I2C, so the caller retries.
     func getVCP(_ code: UInt8) -> (value: UInt16, max: UInt16)? {
         guard let api = Self.api, send([0x82, 0x01, code], seed: destination) else { return nil }
-        usleep(40_000) // give the monitor time to stage the reply
+        // The monitor needs time to put the reply on the bus. Too short and the
+        // read returns a half-written buffer that fails the checksum; the cost of
+        // being generous is only latency on a path that already retries.
+        usleep(40_000)
         var reply = [UInt8](repeating: 0, count: 11)
         // Reads pass offset 0, NOT the 0x51 sub-address used for writes:
         // passing 0x51 here returns garbage from every monitor.
