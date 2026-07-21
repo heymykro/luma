@@ -14,9 +14,30 @@ small, free, open-source menu-bar app that just does the thing:
 - Works with **any keyboard**: standard brightness keys (HID consumer usages), Apple-style media keys (including rotary knobs on QMK/VIA boards), and optional F14/F15 legacy keys.
 - **Notch-style HUD** (black pill, top of screen, or vertical from the left/right edge), scroll the menu bar icon to adjust, hotplug detection with brightness restore, launch at login, no telemetry, no accounts, no caps.
 
+## Requirements
+
+**Apple Silicon only** (M1 and later), macOS 13 Ventura or newer.
+
+Intel Macs are not supported yet. macOS exposes a monitor's DDC channel through
+an entirely different API there (`IOFramebuffer` + `IOI2CSendRequest` rather
+than `IOAVService`), and that backend isn't written. It will ship when it can be
+tested on real Intel hardware rather than before.
+
 ## Install
 
-Grab the latest build from [Releases](../../releases), drag Luma to Applications.
+Homebrew:
+
+```sh
+brew tap heymykro/tap
+brew trust heymykro/tap
+brew install --cask --no-quarantine luma
+```
+
+`brew trust` is required: Homebrew 6 refuses casks from third-party taps until
+you trust one, and fails rather than prompting.
+
+Or grab the latest build from [Releases](../../releases) and drag Luma to
+Applications.
 
 The app is not notarized (it's ad-hoc signed), so on first launch macOS will
 complain: right-click **Luma.app → Open → Open**, or clear quarantine with
