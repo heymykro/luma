@@ -97,11 +97,9 @@ final class AppModel: ObservableObject {
     }
 }
 
-/// Outward links used by the settings menu and the footer. Both point at
-/// GitHub while getluma.app is still parked at its registrar; move `site`
-/// over once it serves.
+/// Outward links used by the settings menu and the footer.
 enum AppLinks {
-    static let site = URL(string: "https://github.com/heymykro/luma")!
+    static let site = URL(string: "https://getluma.app")!
     static let issues = URL(string: "https://github.com/heymykro/luma/issues/new")!
 }
 
@@ -209,7 +207,7 @@ struct PopoverView: View {
             Divider()
             Button("Check for Updates…") { Updater.checkNow() }
             Button("What's New") { NSWorkspace.shared.open(Updater.changelogPage) }
-            Button("Project on GitHub") { NSWorkspace.shared.open(AppLinks.site) }
+            Button("Luma Website") { NSWorkspace.shared.open(AppLinks.site) }
             Button("Report an Issue") { NSWorkspace.shared.open(AppLinks.issues) }
             Divider()
             Button("Quit Luma") { NSApp.terminate(nil) }

@@ -17,12 +17,7 @@ enum Updater {
     private static let releasesAPI =
         URL(string: "https://api.github.com/repos/\(repo)/releases?per_page=20")!
     private static let releasesPage = URL(string: "https://github.com/\(repo)/releases/latest")!
-    /// Points at GitHub rather than getluma.app/changelog: the domain is
-    /// registered but still on its registrar's parking IP, and a menu item
-    /// that goes nowhere is worse than a plainer destination. Every release's
-    /// notes live here too, so this stays correct either way. Switch once the
-    /// site is actually serving.
-    static let changelogPage = URL(string: "https://github.com/\(repo)/releases")!
+    static let changelogPage = URL(string: "https://getluma.app/changelog")!
 
     private static let lastCheckKey = "luma.updater.lastCheck"
     private static let skippedKey = "luma.updater.skippedVersion"

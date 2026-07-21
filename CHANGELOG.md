@@ -23,6 +23,7 @@ _First public beta — native Swift, 1.2 MB, zero dependencies._
 - **A settings menu in the panel.** The gear beside the Luma wordmark opens profiles, display refresh, diagnostics, update checks, and quit — everything that doesn't earn a permanent row, without hunting for a right-click.
 - **Updates that explain themselves.** Luma checks GitHub once a day and, when there's something newer, shows the release notes inline with a Download button. No Sparkle, no background daemon, no telemetry — and you can skip a version.
 - **The build you're on, in plain sight.** The panel footer shows the version and links to the changelog.
+- **Switches you can read at a glance.** A toggle that's on carries the same warm fill as the buttons beside it, instead of the system switch's near-identical on and off states.
 
 ### Fixed
 
