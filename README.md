@@ -33,9 +33,8 @@ tested on real Intel hardware rather than before.
 Homebrew:
 
 ```sh
-brew tap heymykro/tap
 brew trust heymykro/tap
-brew install --cask --no-quarantine luma
+brew install --cask heymykro/tap/luma
 ```
 
 `brew trust` is required: Homebrew 6 refuses casks from third-party taps until

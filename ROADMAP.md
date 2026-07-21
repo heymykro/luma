@@ -1,7 +1,7 @@
 # Roadmap
 
 Where Luma is going, and what's deliberately parked. Nothing here is a promise
-with a date on it — it's a working list, kept honest about what's actually been
+with a date on it. It is a working list, kept honest about what's actually been
 verified.
 
 Suggestions welcome: [open an issue](https://github.com/heymykro/luma/issues/new).
@@ -12,7 +12,7 @@ Suggestions welcome: [open an issue](https://github.com/heymykro/luma/issues/new
 `CBBlueLightClient` in the private CoreBrightness framework exposes
 `setStrength:commit:`, `setEnabled:`, `setMode:` and `setSchedule:`. Verified
 present and working. Worth doing through the OS rather than as an f.lux-style
-gamma layer, because Luma already owns the gamma table for sub-zero dimming —
+gamma layer, because Luma already owns the gamma table for sub-zero dimming, so
 two gamma stages would fight, and whichever wrote last would win. Night Shift is
 a separate stage, so warmth and dimming compose. It also survives sleep/wake and
 display reconfiguration for free, which our gamma layer does not.
@@ -25,8 +25,8 @@ exists.
 
 **Intel support.** Blocked on hardware, not effort. The DDC transport is
 `IOAVService`, which only exists on Apple Silicon; Intel needs a second backend
-over `IOFramebuffer` + `IOI2CSendRequest`. The protocol layer above it —
-VCP codes, packet framing, checksums — is already correct and verified, so it's
+over `IOFramebuffer` + `IOI2CSendRequest`. The protocol layer above it
+(VCP codes, packet framing, checksums) is already correct and verified, so it's
 maybe 150 lines. It ships when someone with an Intel Mac and a couple of
 external displays can test it the same day, not before. Four separate bugs hid
 in this exact subsystem before it worked; shipping a blind rewrite of it would
@@ -61,7 +61,7 @@ quietly forgotten.
   when two are indistinguishable, the fallback is iteration order. Scoring the
   framebuffer's `IODisplayLocation` against the display's would settle it.
 - **DDC over docks and hubs** frequently doesn't work, and macOS exposes no way
-  to detect it — the monitor simply never answers. Nothing to fix on our side;
+  to detect it: the monitor simply never answers. Nothing to fix on our side;
   documented in the FAQ so the bug reports have an answer.
 - **The DDC reply path has only ever been exercised on one monitor.** Reads,
   writes and read-back are verified, but on a single non-Apple panel. More
@@ -80,4 +80,4 @@ quietly forgotten.
 - Menu bar gauge, notch-style HUD, profiles and presets
 - `luma://` URL scheme
 - In-app update checks with release notes
-- Homebrew cask — `brew install --cask heymykro/tap/luma`
+- Homebrew cask: `brew install --cask heymykro/tap/luma`
