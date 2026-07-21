@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Luma HUD</title>
+    <script type="module" src="/src/hud.ts" defer></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        background: transparent;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+      }
+
+      #pill {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        background: rgba(0, 0, 0, 0.96);
+        border-radius: 999px;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+        opacity: 0;
+        transition:
+          transform 0.24s cubic-bezier(0.32, 0.72, 0, 1),
+          opacity 0.2s ease;
+      }
+
+      svg {
+        flex: none;
+        width: 17px;
+        height: 17px;
+      }
+      svg circle {
+        fill: #fff;
+      }
+      svg line {
+        stroke: #fff;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+      }
+
+      #track {
+        position: relative;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.28);
+        overflow: hidden;
+        flex: 1;
+      }
+      #bar {
+        position: absolute;
+        background: #fff;
+        border-radius: 999px;
+      }
+
+      /* ---- top: dynamic island, horizontal ---- */
+      body.pos-top #pill {
+        left: 50%;
+        top: 10px;
+        width: 264px;
+        height: 44px;
+        padding: 0 18px;
+        gap: 12px;
+        flex-direction: row;
+        transform: translate(-50%, -180%);
+      }
+      body.pos-top.show #pill {
+        transform: translate(-50%, 0);
+        opacity: 1;
+      }
+      body.pos-top #track {
+        height: 6px;
+      }
+      body.pos-top #bar {
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: calc(var(--v) * 100%);
+      }
+
+      /* ---- left / right: vertical pill ---- */
+      body.pos-left #pill,
+      body.pos-right #pill {
+        top: 50%;
+        width: 44px;
+        height: 264px;
+        padding: 18px 0;
+        gap: 12px;
+        flex-direction: column-reverse; /* icon at the bottom */
+        align-items: center;
+      }
+      body.pos-left #pill {
+        left: 10px;
+        transform: translate(-180%, -50%);
+      }
+      body.pos-right #pill {
+        right: 10px;
+        transform: translate(180%, -50%);
+      }
+      body.pos-left.show #pill,
+      body.pos-right.show #pill {
+        transform: translate(0, -50%);
+        opacity: 1;
+      }
+      body.pos-left #track,
+      body.pos-right #track {
+        width: 6px;
+      }
+      body.pos-left #bar,
+      body.pos-right #bar {
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: calc(var(--v) * 100%);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="pill" style="--v: 0.5">
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4.5" />
+        <line x1="12" y1="2.5" x2="12" y2="5.5" />
+        <line x1="12" y1="18.5" x2="12" y2="21.5" />
+        <line x1="2.5" y1="12" x2="5.5" y2="12" />
+        <line x1="18.5" y1="12" x2="21.5" y2="12" />
+        <line x1="5.3" y1="5.3" x2="7.4" y2="7.4" />
+        <line x1="16.6" y1="16.6" x2="18.7" y2="18.7" />
+        <line x1="5.3" y1="18.7" x2="7.4" y2="16.6" />
+        <line x1="16.6" y1="7.4" x2="18.7" y2="5.3" />
+      </svg>
+      <div id="track"><div id="bar"></div></div>
+    </div>
+  </body>
+</html>

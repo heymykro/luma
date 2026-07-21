@@ -1,0 +1,331 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+
+  --ink: light-dark(rgba(0, 0, 0, 0.92), rgba(255, 255, 255, 0.96));
+  --ink-2: light-dark(rgba(0, 0, 0, 0.55), rgba(255, 255, 255, 0.55));
+  --ink-3: light-dark(rgba(0, 0, 0, 0.4), rgba(255, 255, 255, 0.45));
+  --hairline: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.1));
+  --track: light-dark(rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.16));
+  --tile: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.1));
+  --tile-hover: light-dark(rgba(0, 0, 0, 0.09), rgba(255, 255, 255, 0.14));
+  --panel-tint: light-dark(rgba(255, 255, 255, 0.28), rgba(46, 46, 52, 0.32));
+  --accent: #0a84ff;
+}
+
+/* transparent so the NSVisualEffectView vibrancy provides the real blur;
+   CSS only tints on top of it, Control Center style */
+html,
+body {
+  background: transparent;
+  overscroll-behavior: none;
+}
+
+/* position:fixed pins the page so WKWebView can't rubber-band it sideways */
+body {
+  position: fixed;
+  inset: 0;
+  color: var(--ink);
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+  overflow: hidden;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  max-height: 100vh;
+  padding: 14px;
+  /* radius must match the vibrancy layer's corner radius set in lib.rs */
+  border-radius: 22px;
+  background: linear-gradient(
+      180deg,
+      light-dark(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.07)),
+      rgba(255, 255, 255, 0) 36%
+    ),
+    var(--panel-tint);
+  box-shadow: inset 0 0 0 0.5px light-dark(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.14));
+}
+
+.empty {
+  color: var(--ink-3);
+  text-align: center;
+  padding: 24px 0;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--hairline);
+  margin: 12px -14px;
+}
+
+#displays {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+/* ── label rows ─────────────────────────────────────────── */
+.group {
+  margin-top: 11px;
+}
+.group:first-child,
+hr + .group {
+  margin-top: 0;
+}
+
+.labelrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px 6px;
+}
+.labelrow .name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.group.master .name {
+  font-size: 13px;
+}
+.labelrow .readout {
+  margin-left: auto;
+  font: 500 10.5px/1.3 ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.3px;
+  color: var(--ink-3);
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  transition: color 160ms ease;
+}
+.labelrow .readout.live {
+  color: var(--ink);
+}
+
+.group.disabled {
+  opacity: 0.45;
+}
+.subtitle {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin: 4px 2px 0;
+}
+
+/* ── Control Center slider ──────────────────────────────── */
+.slider {
+  position: relative;
+  height: 28px;
+  touch-action: none;
+  outline: none;
+  transition: transform 260ms cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+.slider.dragging {
+  transform: scale(1.012, 1.1);
+}
+.track {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: var(--track);
+  box-shadow:
+    inset 0 0.5px 1.5px rgba(0, 0, 0, 0.2),
+    inset 0 0 0 0.5px light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.07));
+  overflow: hidden;
+}
+.slider:focus-visible .track {
+  box-shadow:
+    inset 0 0.5px 1.5px rgba(0, 0, 0, 0.2),
+    0 0 0 3px light-dark(rgba(10, 132, 255, 0.35), rgba(10, 132, 255, 0.45));
+}
+.fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: calc(28px + (100% - 28px) * var(--v, 0.5));
+  border-radius: 14px;
+  background: #fff;
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.06),
+    0 1px 3px rgba(0, 0, 0, 0.22);
+}
+.slider:not(.dragging) .fill {
+  transition: width 200ms cubic-bezier(0.3, 0.9, 0.35, 1);
+}
+.slider .sun {
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(60, 60, 67, 0.75); /* dark glyph on the white fill, both themes */
+  pointer-events: none;
+}
+
+/* ── settings tiles, CC style ───────────────────────────── */
+footer {
+  margin-top: 12px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.tile {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--tile);
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  transition: background 150ms ease, transform 150ms ease;
+  outline: none;
+}
+.tile:hover {
+  background: var(--tile-hover);
+}
+.tile:active {
+  transform: scale(0.98);
+}
+.tile:focus-visible {
+  box-shadow: 0 0 0 3px light-dark(rgba(10, 132, 255, 0.35), rgba(10, 132, 255, 0.45));
+}
+.tile .disc {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.18));
+  color: var(--ink-2);
+  transition: background 180ms ease, color 180ms ease;
+}
+.tile.on .disc {
+  background: var(--accent);
+  color: #fff;
+}
+.tile .t-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.tile .t-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.tile .t-value {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* ── segmented switches ─────────────────────────────────── */
+.seg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.seg-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  letter-spacing: 0.2px;
+  margin: 0 2px;
+}
+.seg {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  height: 30px;
+  padding: 2px;
+  border-radius: 11px;
+  background: var(--tile);
+}
+.seg-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 9px;
+  background: light-dark(#ffffff, rgba(255, 255, 255, 0.26));
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.06),
+    0 1.5px 4px rgba(0, 0, 0, 0.18);
+  transition: transform 220ms cubic-bezier(0.3, 0.9, 0.35, 1);
+}
+.seg button {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  border-radius: 7px;
+  transition: color 160ms ease;
+  outline: none;
+}
+.seg button.active {
+  color: var(--ink);
+  font-weight: 600;
+}
+.seg button:focus-visible {
+  box-shadow: 0 0 0 3px light-dark(rgba(10, 132, 255, 0.35), rgba(10, 132, 255, 0.45));
+}
+.seg-hint {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  margin: 0 2px;
+}
+
+.ax-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: light-dark(rgba(255, 159, 10, 0.15), rgba(255, 214, 10, 0.12));
+}
+.ax-warning span {
+  flex: 1;
+  font-size: 11.5px;
+  color: light-dark(#8a5a00, #ffd60a);
+}
+.ax-warning button {
+  border: none;
+  border-radius: 6px;
+  background: light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.14));
+  color: var(--ink);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 10px;
+}
