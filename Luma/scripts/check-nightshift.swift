@@ -30,6 +30,15 @@ check("luma://warm toggles", warm("luma://warm").map { $0.0 == nil && $0.1 == ni
 check("level implies on", warm("luma://warm?level=40").map { $0.0 == 0.4 && $0.1 == true } ?? false)
 check("explicit off", warm("luma://warm?on=false").map { $0.0 == nil && $0.1 == false } ?? false)
 
+// Stepping the schedule times wraps at midnight in both directions.
+let t = NightShift.Time(hour: 0, minute: 0)
+check("00:00 back 15m -> 23:45", t.advanced(byMinutes: -15) == .init(hour: 23, minute: 45))
+check("23:50 on 15m -> 00:05", NightShift.Time(hour: 23, minute: 50)
+        .advanced(byMinutes: 15) == .init(hour: 0, minute: 5))
+check("a full day is a no-op", t.advanced(byMinutes: 1440) == t)
+check("22:00 on 15m -> 22:15", NightShift.Time(hour: 22, minute: 0)
+        .advanced(byMinutes: 15) == .init(hour: 22, minute: 15))
+
 guard NightShift.isSupported, let before = NightShift.status() else {
     print("\nCoreBrightness unavailable; skipped the live round trip.")
     exit(failures == 0 ? 0 : 1)

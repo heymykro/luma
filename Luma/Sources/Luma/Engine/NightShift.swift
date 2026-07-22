@@ -34,16 +34,16 @@ enum NightShift {
         var minute: Int
         var minutesSinceMidnight: Int { hour * 60 + minute }
         init(hour: Int, minute: Int) { self.hour = hour; self.minute = minute }
-        init(minutesSinceMidnight m: Int) { hour = (m / 60) % 24; minute = m % 60 }
-
-        /// Bridges to SwiftUI's DatePicker, which only speaks Date. The day
-        /// is arbitrary and thrown away; only the clock face matters.
-        init(date: Date) {
-            let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
-            self.init(hour: parts.hour ?? 0, minute: parts.minute ?? 0)
+        init(minutesSinceMidnight m: Int) {
+            let wrapped = ((m % 1440) + 1440) % 1440   // Swift's % keeps the sign
+            hour = wrapped / 60
+            minute = wrapped % 60
         }
-        var asDate: Date {
-            Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date()
+
+        /// Wraps around midnight in both directions, so stepping back from
+        /// 00:00 lands on 23:45 rather than a negative hour.
+        func advanced(byMinutes delta: Int) -> Time {
+            Time(minutesSinceMidnight: minutesSinceMidnight + delta)
         }
     }
 

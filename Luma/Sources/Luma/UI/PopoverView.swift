@@ -92,9 +92,8 @@ final class AppModel: ObservableObject {
         refreshWarmth()
     }
 
-    /// Times only, never the mode. A `.field` DatePicker commits its value as
-    /// it is torn down, so writing the mode here meant that leaving Custom
-    /// re-selected Custom on the way out and the segment could not be changed.
+    /// Times only, never the mode: the mode belongs to the segment alone, so
+    /// nudging a time can never drag the schedule back to Custom.
     func setWarmTimes(from: NightShift.Time, to: NightShift.Time) {
         NightShift.setSchedule(from: from, to: to)
         refreshWarmth()
@@ -424,19 +423,39 @@ struct PopoverView: View {
         }
     }
 
-    /// A stock DatePicker in hour-and-minute mode: fewer lines than a pair of
-    /// steppers and it already speaks the user's 12/24-hour preference.
+    /// Deliberately not a DatePicker. The popover is a non-activating panel
+    /// that refuses to become key, and a `.field` DatePicker is a focus-hungry
+    /// AppKit text control: dropped in here it claimed the field editor,
+    /// swallowed mouse events for the whole card, and sent keystrokes nowhere.
+    /// Every other control in this panel is drawn by us for the same reason.
     private func timeField(_ label: String, _ time: NightShift.Time,
                            onChange: @escaping (NightShift.Time) -> Void) -> some View {
-        HStack(spacing: 6) {
-            Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.45))
-            DatePicker("", selection: Binding(
-                get: { time.asDate },
-                set: { onChange(NightShift.Time(date: $0)) }
-            ), displayedComponents: .hourAndMinute)
-            .datePickerStyle(.field)
-            .labelsHidden()
+        HStack(spacing: 5) {
+            Text(label).font(.system(size: 10, weight: .bold)).tracking(0.5)
+                .foregroundStyle(.white.opacity(0.4))
+            Text(String(format: "%02d:%02d", time.hour, time.minute))
+                .font(.system(size: 12.5, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.white.opacity(0.92))
+            Spacer(minLength: 2)
+            // Quarter-hour steps: enough resolution for a sunset, and it puts
+            // a whole day inside a few taps.
+            VStack(spacing: 2) {
+                stepArrow("chevron.up") { onChange(time.advanced(byMinutes: 15)) }
+                stepArrow("chevron.down") { onChange(time.advanced(byMinutes: -15)) }
+            }
         }
+        .padding(.horizontal, 9).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.white.opacity(0.05)))
+    }
+
+    private func stepArrow(_ icon: String, action: @escaping () -> Void) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 7, weight: .black))
+            .foregroundStyle(.white.opacity(0.55))
+            .frame(width: 16, height: 9)
+            .background(RoundedRectangle(cornerRadius: 3, style: .continuous).fill(.white.opacity(0.07)))
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
     }
 
     private func sliderRow(icon: String, label: String, value: Float, bold: Bool = false,
