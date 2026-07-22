@@ -34,6 +34,11 @@ guard NightShift.isSupported, let before = NightShift.status() else {
     print("\nCoreBrightness unavailable; skipped the live round trip.")
     exit(failures == 0 ? 0 : 1)
 }
+// observe() is checked before anything else writes: registering the block is
+// what crashed at launch once, and it only fails when a write fires it.
+var notified = false
+NightShift.observe { notified = true }
+
 let strengthBefore = NightShift.strength
 print("\nas found: active=\(before.active) mode=\(before.mode) "
       + "\(before.from.hour):\(before.from.minute) -> \(before.to.hour):\(before.to.minute) "
@@ -61,6 +66,10 @@ NightShift.setStrength(strengthBefore)
 NightShift.setActive(before.active)
 usleep(400_000)
 let after = NightShift.status()
+// observe() delivers on the main queue, which a command-line tool only drains
+// if something runs the runloop. Without this the check reports a false miss.
+RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+check("observe() fires on change", notified)
 check("restored to as-found", after == before && abs(NightShift.strength - strengthBefore) < 0.001)
 
 print(failures == 0 ? "\nall checks passed" : "\n\(failures) failed")

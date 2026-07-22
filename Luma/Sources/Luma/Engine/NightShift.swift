@@ -94,7 +94,13 @@ enum NightShift {
     private typealias SetInt32Fn = @convention(c) (AnyObject, Selector, Int32) -> Bool
     private typealias SetFloatCommitFn = @convention(c) (AnyObject, Selector, Float, Bool) -> Bool
     private typealias SetScheduleFn = @convention(c) (AnyObject, Selector, UnsafeRawPointer) -> Bool
-    private typealias SetBlockFn = @convention(c) (AnyObject, Selector, @convention(block) (UnsafeRawPointer?) -> Void) -> Void
+    /// The block parameter is typed AnyObject rather than a Swift function
+    /// type on purpose. Swift passes closures to C function pointers as
+    /// non-escaping, and CoreBrightness stores this one, which trips the
+    /// "closure argument passed as @noescape to Objective-C has escaped"
+    /// trap at launch. Handing it over as an already-bridged block object
+    /// sidesteps that; `notificationBlock` below keeps it alive.
+    private typealias SetBlockFn = @convention(c) (AnyObject, Selector, AnyObject) -> Void
 
     // MARK: - Reading
 
@@ -209,8 +215,12 @@ enum NightShift {
     static func observe(_ onChange: @escaping () -> Void) {
         guard isSupported, let c = client,
               let set = fn("setStatusNotificationBlock:", SetBlockFn.self) else { return }
-        set(c, Selector(("setStatusNotificationBlock:"))) { _ in
+        let block: @convention(block) (UnsafeRawPointer?) -> Void = { _ in
             DispatchQueue.main.async(execute: onChange)
         }
+        notificationBlock = block  // CoreBrightness does not own it; we must
+        set(c, Selector(("setStatusNotificationBlock:")), block as AnyObject)
     }
+
+    private static var notificationBlock: Any?
 }
