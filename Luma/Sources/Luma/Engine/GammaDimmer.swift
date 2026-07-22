@@ -1,14 +1,14 @@
 import CoreGraphics
 
 /// Software dimming via the display's gamma transfer table
-/// (public CGSetDisplayTransferByFormula — the technique f.lux and Gamma
-/// Dimmer use). Two jobs:
+/// (public CGSetDisplayTransferByFormula). Two jobs:
 ///   • the sub-zero tail that lets any slider dim past the hardware backlight
 ///     floor (a too-bright panel at night), and
 ///   • a fallback so DDC-less / mirrored displays are still controllable.
 ///
-/// Gamma is a shared per-display resource: another app touching it (Night
-/// Shift, f.lux) will fight us, and macOS resets it on wake / resolution
+/// Gamma is a shared per-display resource: anything else touching it (Night
+/// Shift, colour-temperature tools) will fight us, and macOS resets it on
+/// wake / resolution
 /// change — so remembered factors are re-applied from the self-healing layer.
 /// Stateless: the BrightnessController re-asserts factors from the store (the
 /// source of truth) after wake/reconfigure, so a display that regains DDC

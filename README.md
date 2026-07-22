@@ -4,15 +4,21 @@
 
 macOS ships no brightness control at all for non-Apple monitors, routes plain
 brightness keys to the built-in panel first, and hides Apple-external control
-behind a Ctrl+key shortcut that custom keyboards can't even send. Popular
-utilities meter free adjustments by the day or paywall the basics. Luma is a
+behind a Ctrl+key shortcut that custom keyboards can't even send. Luma is a
 small, free, open-source menu-bar app that just does the thing:
 
 - **Per-display sliders + an "All Displays" master slider** in a menu-bar popover (no dock icon).
 - **Keyboard brightness keys work on every display**: route them to *all displays* or *the display under your mouse pointer*; hold a modifier (**⌥** by default, configurable: ⌥/⌃/⇧/⌘) to temporarily use the other routing.
 - **All display types**: built-in panels and Apple displays (Studio Display, Pro Display XDR, UltraFine) via Apple's native brightness path, everything else via DDC/CI on Apple Silicon.
 - Works with **any keyboard**: standard brightness keys (HID consumer usages), Apple-style media keys (including rotary knobs on QMK/VIA boards), and optional F14/F15 legacy keys.
-- **Notch-style HUD** (black pill, top of screen, or vertical from the left/right edge), scroll the menu bar icon to adjust, hotplug detection with brightness restore, launch at login, no telemetry, no accounts, no caps.
+- **Sub-zero dimming**: keep going past the hardware backlight floor via the display's gamma table, which also covers displays with no DDC at all.
+- **Profiles**: named per-display snapshots ("Day", "Movie"), applied from the tray or a `luma://` URL.
+- **`luma://` URL scheme**: `set`, `up`, `down`, `profile/<name>`, `pause`. Drives Shortcuts, Raycast, or a shell script today.
+- **Notch-style HUD** (black pill, top of screen, or vertical from the left/right edge), scroll the menu bar icon to adjust, hotplug detection with brightness restore, in-app update checks, launch at login, no telemetry, no accounts, no caps.
+
+> **Public beta.** It works on the hardware it has been tested on, and DDC
+> monitors vary wildly. If yours misbehaves, open an issue with ⚙ → Copy
+> Diagnostics attached.
 
 ## Roadmap
 
@@ -33,8 +39,7 @@ tested on real Intel hardware rather than before.
 Homebrew:
 
 ```sh
-brew trust heymykro/tap
-brew install --cask heymykro/tap/luma
+brew trust heymykro/tap && brew install --cask heymykro/tap/luma
 ```
 
 `brew trust` is required: Homebrew 6 refuses casks from third-party taps until
@@ -65,11 +70,11 @@ and read the comment first.
 
 | Directory | Contents |
 |---|---|
-| `Engine/` | `AppleBrightness` (DisplayServices, runtime-loaded) · `DDCService` (IOAVService I2C transport + display matching) · `DDCWorker` (single I2C thread, last-value-wins coalescing, self-healing) · `DisplayManager` (topology, classification, geometry) · `BrightnessController` (routing, rescan, restore-on-reconnect) |
+| `Engine/` | `AppleBrightness` (DisplayServices, runtime-loaded) · `DDCService` (IOAVService I2C transport + display matching) · `DDCWorker` (single I2C thread, last-value-wins coalescing, self-healing) · `GammaDimmer` (sub-zero tail and DDC-less fallback) · `DisplayManager` (topology, classification, geometry) · `BrightnessController` (routing, rescan, restore-on-reconnect) |
 | `Input/` | `KeyTap` (CGEventTap: both key event routes, scroll-over-tray, flip modifier, watchdog) · `Accessibility` |
-| `State/` | `Settings` (Codable, POC-compatible JSON) · `Store` (thread-safe canonical state) |
-| `UI/` | `StatusItemController` · `TrayMenu` · `PopoverPanel` (non-activating panel) · `PopoverView` (SwiftUI) · `HUDController` |
-| `Support/` | `LaunchAtLogin` (SMAppService) · `Diagnostics` |
+| `State/` | `Settings` (Codable JSON in the config dir) · `Profiles` (named per-display snapshots) · `Store` (thread-safe canonical state) |
+| `UI/` | `StatusItemController` · `TrayIcon` (the drawn sunrise gauge) · `TrayMenu` · `PopoverPanel` (non-activating panel) · `PopoverView` (SwiftUI) · `HUDController` |
+| `Support/` | `Commands` (the `luma://` vocabulary) · `ConfigWatcher` (live reload of hand-edited JSON) · `Updater` + `Version` (release checks) · `LaunchAtLogin` (SMAppService) · `Diagnostics` · `Log` |
 
 ## How it works
 
@@ -95,7 +100,6 @@ distributed outside it too.
 - Apple Silicon only (the DDC path uses `IOAVService`; Intel would need an `IOFramebuffer` backend).
 - DDC doesn't pass through DisplayLink docks and some USB hubs.
 - Monitors must have DDC/CI enabled in their OSD menu.
-- No dimming below the hardware minimum (gamma-table dimming); planned.
 - HDMI ports on M1 / base M2 Macs have quirky DDC support.
 
 ## Building
@@ -120,7 +124,7 @@ stale entry).
 Issues and PRs welcome. Ground rules to keep the app what it is:
 
 - **Small and single-purpose.** Brightness in, brightness out. Features that need their own settings window probably belong in another app.
-- **Engine changes need the "why".** The DDC/tap code is full of deliberate timing and retry choices; each one has a comment (and a matching Rust source in the POC). Keep the comments truthful.
+- **Engine changes need the "why".** The DDC/tap code is full of deliberate timing and retry choices; each one has a comment beside it. Keep the comments truthful.
 - **No new dependencies** without a very good reason; the app currently has zero.
 - **No telemetry, ever.**
 

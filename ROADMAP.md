@@ -11,7 +11,7 @@ Suggestions welcome: [open an issue](https://github.com/heymykro/luma/issues/new
 **Night Shift / warmth control.** macOS already ships this, and it's drivable:
 `CBBlueLightClient` in the private CoreBrightness framework exposes
 `setStrength:commit:`, `setEnabled:`, `setMode:` and `setSchedule:`. Verified
-present and working. Worth doing through the OS rather than as an f.lux-style
+present and working. Worth doing through the OS rather than as our own
 gamma layer, because Luma already owns the gamma table for sub-zero dimming, so
 two gamma stages would fight, and whichever wrote last would win. Night Shift is
 a separate stage, so warmth and dimming compose. It also survives sleep/wake and
