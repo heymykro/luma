@@ -411,16 +411,26 @@ struct PopoverView: View {
                       (.sunsetToSunrise, "Sunset"),
                       (.custom, "Custom")]) { model.setWarmSchedule($0) }
 
-        if warmth.mode == .custom {
-            HStack(spacing: 8) {
-                timeField("From", warmth.from) { model.setWarmTimes(from: $0, to: warmth.to) }
-                timeField("To", warmth.to) { model.setWarmTimes(from: warmth.from, to: $0) }
+        // Fixed height on purpose. Letting this row appear and vanish resized
+        // the card, and the resize animated: picking Custom slid everything
+        // down, leaving it slid back up. Every mode occupies the same space,
+        // so the two without times explain themselves in it instead.
+        Group {
+            switch warmth.mode {
+            case .custom:
+                HStack(spacing: 8) {
+                    timeField("FROM", warmth.from) { model.setWarmTimes(from: $0, to: warmth.to) }
+                    timeField("TO", warmth.to) { model.setWarmTimes(from: warmth.from, to: $0) }
+                }
+            case .sunsetToSunrise:
+                scheduleNote(warmth.sunSchedulePermitted
+                    ? "Follows sunset and sunrise where you are."
+                    : "Needs Location Services to know where you are.")
+            case .manual:
+                scheduleNote("No schedule. Warmth stays where you leave it.")
             }
-        } else if warmth.mode == .sunsetToSunrise && !warmth.sunSchedulePermitted {
-            Text("Sunset needs Location Services to know where you are.")
-                .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
-                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(height: 30)
     }
 
     /// Deliberately not a DatePicker. The popover is a non-activating panel
@@ -444,8 +454,15 @@ struct PopoverView: View {
                 stepArrow("chevron.down") { onChange(time.advanced(byMinutes: -15)) }
             }
         }
-        .padding(.horizontal, 9).padding(.vertical, 6)
+        .padding(.horizontal, 9)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.white.opacity(0.05)))
+    }
+
+    private func scheduleNote(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11)).foregroundStyle(.white.opacity(0.42))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
     private func stepArrow(_ icon: String, action: @escaping () -> Void) -> some View {
