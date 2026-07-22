@@ -83,7 +83,7 @@ final class AppModel: ObservableObject {
     func setWarmStrength(_ value: Float) {
         warmStrength = value
         NightShift.setStrength(value)
-        if warmth?.active == false { setWarmActive(true) }
+        if warmth?.isWarm == false { setWarmActive(true) }
     }
 
     func setWarmSchedule(_ mode: NightShift.Mode) {
@@ -385,7 +385,7 @@ struct PopoverView: View {
     /// itself at sunset looks like a bug.
     @ViewBuilder
     private func warmthCard(_ warmth: NightShift.Status) -> some View {
-        Toggle(isOn: Binding(get: { warmth.active }, set: { model.setWarmActive($0) })) {
+        Toggle(isOn: Binding(get: { warmth.isWarm }, set: { model.setWarmActive($0) })) {
             HStack(spacing: 7) {
                 Image(systemName: "moon.fill").font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.55)).frame(width: 14)
@@ -404,7 +404,7 @@ struct PopoverView: View {
             }
             BrightnessSlider(value: model.warmStrength, tint: .warmth) { model.setWarmStrength($0) }
         }
-        .opacity(warmth.active ? 1 : 0.45)
+        .opacity(warmth.isWarm ? 1 : 0.45)
 
         labeledSegment("SCHEDULE", selection: warmth.mode,
             options: [(NightShift.Mode.manual, "Off"),

@@ -56,6 +56,11 @@ enum NightShift {
         /// with one it doubles as the schedule's arming flag.
         var enabled = false
         var sunSchedulePermitted = false // false when Location Services can't place you
+
+        /// Whether the screen is actually warm. Neither flag means it alone,
+        /// so anything user-facing must ask this rather than either one: a
+        /// toggle bound to `active` reads ON while the screen sits neutral.
+        var isWarm: Bool { active && enabled }
         var mode: Mode = .manual
         var from = Time(hour: 22, minute: 0)
         var to = Time(hour: 7, minute: 0)

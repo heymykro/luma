@@ -93,11 +93,20 @@ NightShift.setWarmth(on: false, scheduled: false); usleep(400_000)
 check("warmth off clears both", NightShift.status().map { !$0.enabled && !$0.active } == true)
 NightShift.setWarmth(on: true, scheduled: false); usleep(400_000)
 check("warmth on sets both", NightShift.status().map { $0.enabled && $0.active } == true)
+check("isWarm agrees when on", NightShift.status()?.isWarm == true)
 
+// active alone is what the toggle used to read, and this is the state that
+// exposed it: it says on, the screen says otherwise.
+NightShift.setActive(true); NightShift.setEnabled(false); usleep(400_000)
+check("active without enabled is not warm", NightShift.status().map { $0.active && !$0.isWarm } == true)
+
+// Order matters on the way back: setMode clears the master switch, so
+// applySchedule has to run before `enabled` is restored, not after.
 NightShift.applySchedule(before.mode, from: before.from, to: before.to)
 NightShift.setSchedule(from: before.from, to: before.to)
 NightShift.setStrength(strengthBefore)
 NightShift.setActive(before.active)
+NightShift.setEnabled(before.enabled)
 usleep(400_000)
 let after = NightShift.status()
 // observe() delivers on the main queue, which a command-line tool only drains
