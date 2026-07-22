@@ -33,9 +33,23 @@ enum Updater {
     /// User asked. Always reports something, including "you're up to date".
     static func checkNow() { check(silent: false) }
 
-    /// Launch check: silent unless there is genuinely something newer, and at
-    /// most once a day so relaunching all morning doesn't hammer the API.
-    static func checkOnLaunchIfDue() {
+    /// Luma is a menu bar app people leave running for weeks, so a check that
+    /// only ran at launch would never reach the users least likely to hear
+    /// about a release any other way. The hourly tick is not the rate limit;
+    /// the daily guard inside `checkIfDue` is. It just gives it a chance to
+    /// fire, including after a wake from sleep.
+    ///
+    /// `.common` matters: a plain scheduled timer registers in `.default`
+    /// only, which is suspended while a menu or a slider drag is tracking.
+    static func startPeriodicChecks() {
+        checkIfDue()
+        let timer = Timer(timeInterval: 60 * 60, repeats: true) { _ in checkIfDue() }
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    /// Silent unless there is genuinely something newer, and at most once a
+    /// day so relaunching all morning doesn't hammer the API.
+    static func checkIfDue() {
         let last = UserDefaults.standard.double(forKey: lastCheckKey)
         guard Date().timeIntervalSince1970 - last > 60 * 60 * 24 else { return }
         // A beat after launch: the first seconds belong to the display scan.

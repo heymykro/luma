@@ -85,7 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Unsigned and outside the App Store, so nothing tells a user their
         // build is stale. One quiet check a day; silent unless there's news.
-        Updater.checkOnLaunchIfDue()
+        Updater.startPeriodicChecks()
 
         // luma:// URL scheme (Shortcuts "Open URL", Raycast, scripts).
         NSAppleEventManager.shared().setEventHandler(

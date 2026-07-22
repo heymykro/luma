@@ -7,7 +7,7 @@ and Luma uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.1.0-beta.1] - 2026-07-21
 
-_First public beta: native Swift, 1.2 MB, zero dependencies._
+_First public beta: native Swift, under 1 MB, zero dependencies._
 
 ### Added
 
