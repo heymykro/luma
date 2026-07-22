@@ -1,6 +1,7 @@
 # Assembles Luma.app from the SPM build.
 #   make app       release build -> build/Luma.app (stripped, ad-hoc signed)
 #   make release   app + a zipped, checksummed release artifact
+#   make check     self-check the Night Shift binding against the live OS
 #   make clean
 APP     := build/Luma.app
 BINARY  := .build/release/Luma
@@ -11,7 +12,7 @@ BUNDLE_ID := $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" Reso
 # to macOS and drops the Accessibility grant; a stable cert fixes that for good.
 SIGN    ?= $(shell security find-identity -v -p codesigning 2>/dev/null | grep -q "Luma Local" && echo "Luma Local" || echo "-")
 
-.PHONY: app release clean
+.PHONY: app release check clean
 
 app:
 	swift build -c release -Xswiftc -Osize
@@ -38,6 +39,14 @@ release: app
 	@cd build && cp Luma.dmg Luma-$(VERSION).dmg
 	@cd build && shasum -a 256 Luma-$(VERSION).dmg Luma-$(VERSION).zip | tee Luma-$(VERSION).sha256
 	@echo "release: build/Luma.dmg + build/Luma.zip (stable names) — v$(VERSION)"
+
+# The script needs to be called main.swift for swiftc to allow top-level code,
+# which is why it gets copied rather than compiled where it sits.
+check:
+	@T=$$(mktemp -d); cp scripts/check-nightshift.swift $$T/main.swift; \
+	swiftc Sources/Luma/Engine/NightShift.swift Sources/Luma/Support/Commands.swift \
+	       $$T/main.swift -o $$T/check && $$T/check; \
+	R=$$?; rm -rf $$T; exit $$R
 
 clean:
 	rm -rf .build build

@@ -140,6 +140,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             store.paused.set(on ?? !store.paused.get())
             statusController.refreshIcon()
             store.notifyChanged()
+        case .warm(let level, let on):
+            if let level { NightShift.setStrength(level) }
+            NightShift.setActive(on ?? !(NightShift.status()?.active ?? false))
         }
     }
 

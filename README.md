@@ -11,9 +11,10 @@ small, free, open-source menu-bar app that just does the thing:
 - **Keyboard brightness keys work on every display**: route them to *all displays* or *the display under your mouse pointer*; hold a modifier (**⌥** by default, configurable: ⌥/⌃/⇧/⌘) to temporarily use the other routing.
 - **All display types**: built-in panels and Apple displays (Studio Display, Pro Display XDR, UltraFine) via Apple's native brightness path, everything else via DDC/CI on Apple Silicon.
 - Works with **any keyboard**: standard brightness keys (HID consumer usages), Apple-style media keys (including rotary knobs on QMK/VIA boards), and optional F14/F15 legacy keys.
+- **Warmth**: macOS Night Shift on a slider, with its schedule (off, sunset to sunrise, or custom times) in the same panel. Driven through the OS rather than a second gamma layer, so it composes with sub-zero dimming.
 - **Sub-zero dimming**: keep going past the hardware backlight floor via the display's gamma table, which also covers displays with no DDC at all.
 - **Profiles**: named per-display snapshots ("Day", "Movie"), applied from the tray or a `luma://` URL.
-- **`luma://` URL scheme**: `set`, `up`, `down`, `profile/<name>`, `pause`. Drives Shortcuts, Raycast, or a shell script today.
+- **`luma://` URL scheme**: `set`, `up`, `down`, `warm`, `profile/<name>`, `pause`. Drives Shortcuts, Raycast, or a shell script today.
 - **Notch-style HUD** (black pill, top of screen, or vertical from the left/right edge), scroll the menu bar icon to adjust, hotplug detection with brightness restore, in-app update checks, launch at login, no telemetry, no accounts, no caps.
 
 > **Public beta.** It works on the hardware it has been tested on, and DDC
@@ -70,7 +71,7 @@ and read the comment first.
 
 | Directory | Contents |
 |---|---|
-| `Engine/` | `AppleBrightness` (DisplayServices, runtime-loaded) · `DDCService` (IOAVService I2C transport + display matching) · `DDCWorker` (single I2C thread, last-value-wins coalescing, self-healing) · `GammaDimmer` (sub-zero tail and DDC-less fallback) · `DisplayManager` (topology, classification, geometry) · `BrightnessController` (routing, rescan, restore-on-reconnect) |
+| `Engine/` | `AppleBrightness` (DisplayServices, runtime-loaded) · `NightShift` (CBBlueLightClient warmth and schedule) · `DDCService` (IOAVService I2C transport + display matching) · `DDCWorker` (single I2C thread, last-value-wins coalescing, self-healing) · `GammaDimmer` (sub-zero tail and DDC-less fallback) · `DisplayManager` (topology, classification, geometry) · `BrightnessController` (routing, rescan, restore-on-reconnect) |
 | `Input/` | `KeyTap` (CGEventTap: both key event routes, scroll-over-tray, flip modifier, watchdog) · `Accessibility` |
 | `State/` | `Settings` (Codable JSON in the config dir) · `Profiles` (named per-display snapshots) · `Store` (thread-safe canonical state) |
 | `UI/` | `StatusItemController` · `TrayIcon` (the drawn sunrise gauge) · `TrayMenu` · `PopoverPanel` (non-activating panel) · `PopoverView` (SwiftUI) · `HUDController` |

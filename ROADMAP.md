@@ -8,21 +8,6 @@ Suggestions welcome: [open an issue](https://github.com/heymykro/luma/issues/new
 
 ## Next up
 
-**Night Shift / warmth control.** macOS already ships this, and it's drivable:
-`CBBlueLightClient` in the private CoreBrightness framework exposes
-`setStrength:commit:`, `setEnabled:`, `setMode:` and `setSchedule:`. Verified
-present and working. Worth doing through the OS rather than as our own
-gamma layer, because Luma already owns the gamma table for sub-zero dimming, so
-two gamma stages would fight, and whichever wrote last would win. Night Shift is
-a separate stage, so warmth and dimming compose. It also survives sleep/wake and
-display reconfiguration for free, which our gamma layer does not.
-
-**Schedules.** Natural companion to the above, and `setSchedule:` gives sunset
-and sunrise without reimplementing solar maths. Open question worth settling
-first: should a schedule drive brightness, warmth, or a whole profile? Profiles
-is probably the most flexible and the least new machinery, since that already
-exists.
-
 **Intel support.** Blocked on hardware, not effort. The DDC transport is
 `IOAVService`, which only exists on Apple Silicon; Intel needs a second backend
 over `IOFramebuffer` + `IOI2CSendRequest`. The protocol layer above it
@@ -81,3 +66,6 @@ quietly forgotten.
 - `luma://` URL scheme
 - In-app update checks with release notes
 - Homebrew cask: `brew install --cask heymykro/tap/luma`
+- Warmth via Night Shift, with its schedule (off / sunset to sunrise / custom
+  times), driven through `CBBlueLightClient` rather than a second gamma layer
+  so it composes with sub-zero dimming instead of fighting it

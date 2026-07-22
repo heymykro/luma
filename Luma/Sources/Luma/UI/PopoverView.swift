@@ -7,6 +7,9 @@ final class AppModel: ObservableObject {
     @Published var settings = Settings()
     @Published var axTrusted = true
     @Published var launchAtLogin = false
+    /// nil when CoreBrightness isn't there to drive, which hides the card.
+    @Published var warmth: NightShift.Status?
+    @Published var warmStrength: Float = 0
 
     fileprivate(set) var controller: BrightnessController?
     private let store: Store
@@ -18,6 +21,10 @@ final class AppModel: ObservableObject {
         self.store = store
         self.controller = controller
         refresh()
+        refreshWarmth()
+        // Control Center, System Settings and the schedule rolling over all
+        // move Night Shift behind our back; without this the card goes stale.
+        NightShift.observe { [weak self] in self?.refreshWarmth() }
     }
 
     func refresh() {
@@ -50,6 +57,39 @@ final class AppModel: ObservableObject {
         // Exclusions are tray-owned; never let the popover revert them.
         copy.excluded = store.settings.get().excluded
         store.updateSettings(copy)
+    }
+
+    // MARK: - Warmth (Night Shift)
+
+    /// macOS owns this state, so Luma stores none of it: every read comes
+    /// straight from CoreBrightness and every write goes straight back.
+    func refreshWarmth() {
+        warmth = NightShift.status()
+        warmStrength = NightShift.strength
+    }
+
+    func setWarmActive(_ on: Bool) {
+        NightShift.setActive(on)
+        refreshWarmth()
+    }
+
+    /// Dragging the slider while warmth is off means you want it on; that is
+    /// what Control Center does, and a slider that does nothing reads broken.
+    func setWarmStrength(_ value: Float) {
+        warmStrength = value
+        NightShift.setStrength(value)
+        if warmth?.active == false { setWarmActive(true) }
+    }
+
+    func setWarmSchedule(_ mode: NightShift.Mode) {
+        let current = warmth ?? NightShift.Status()
+        NightShift.applySchedule(mode, from: current.from, to: current.to)
+        refreshWarmth()
+    }
+
+    func setWarmTimes(from: NightShift.Time, to: NightShift.Time) {
+        NightShift.applySchedule(.custom, from: from, to: to)
+        refreshWarmth()
     }
 
     /// Sub-zero changes the slider→hardware mapping, so re-apply live levels.
@@ -134,6 +174,8 @@ struct PopoverView: View {
                     }
                 }
             }
+
+            if let warmth = model.warmth { card { warmthCard(warmth) } }
 
             card {
                 labeledSegment("KEYS ADJUST", selection: model.settings.keyMode,
@@ -330,6 +372,65 @@ struct PopoverView: View {
         .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).strokeBorder(Color.warm.opacity(0.25), lineWidth: 1))
     }
 
+    /// Warmth is macOS's Night Shift, not a gamma layer of our own, so this
+    /// card is a remote control for state that lives outside Luma. It shows
+    /// the schedule for the same reason: without it, a slider that moves by
+    /// itself at sunset looks like a bug.
+    @ViewBuilder
+    private func warmthCard(_ warmth: NightShift.Status) -> some View {
+        Toggle(isOn: Binding(get: { warmth.active }, set: { model.setWarmActive($0) })) {
+            HStack(spacing: 7) {
+                Image(systemName: "moon.fill").font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.55)).frame(width: 14)
+                Text("Warmth").font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.92))
+            }
+        }
+        .toggleStyle(WarmToggle())
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Spacer()
+                Text("\(Int((model.warmStrength * 100).rounded()))%  ·  \(NightShift.kelvin(for: model.warmStrength))K")
+                    .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            BrightnessSlider(value: model.warmStrength, tint: .warmth) { model.setWarmStrength($0) }
+        }
+        .opacity(warmth.active ? 1 : 0.45)
+
+        labeledSegment("SCHEDULE", selection: warmth.mode,
+            options: [(NightShift.Mode.manual, "Off"),
+                      (.sunsetToSunrise, "Sunset"),
+                      (.custom, "Custom")]) { model.setWarmSchedule($0) }
+
+        if warmth.mode == .custom {
+            HStack(spacing: 8) {
+                timeField("From", warmth.from) { model.setWarmTimes(from: $0, to: warmth.to) }
+                timeField("To", warmth.to) { model.setWarmTimes(from: warmth.from, to: $0) }
+            }
+        } else if warmth.mode == .sunsetToSunrise && !warmth.sunSchedulePermitted {
+            Text("Sunset needs Location Services to know where you are.")
+                .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// A stock DatePicker in hour-and-minute mode: fewer lines than a pair of
+    /// steppers and it already speaks the user's 12/24-hour preference.
+    private func timeField(_ label: String, _ time: NightShift.Time,
+                           onChange: @escaping (NightShift.Time) -> Void) -> some View {
+        HStack(spacing: 6) {
+            Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.45))
+            DatePicker("", selection: Binding(
+                get: { time.asDate },
+                set: { onChange(NightShift.Time(date: $0)) }
+            ), displayedComponents: .hourAndMinute)
+            .datePickerStyle(.field)
+            .labelsHidden()
+        }
+    }
+
     private func sliderRow(icon: String, label: String, value: Float, bold: Bool = false,
                            onChange: @escaping (Float) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -441,7 +542,21 @@ private struct SegmentedPicker<T: Hashable>: View {
 /// Control Center-style slider: white-fill capsule with a warm sun glyph on a
 /// recessed track, draggable anywhere along its length.
 private struct BrightnessSlider: View {
+    /// Brightness fills white; warmth fills the amber it actually produces,
+    /// so the two sliders never get mistaken for each other at a glance.
+    enum Tint {
+        case brightness, warmth
+        var fill: [Color] {
+            switch self {
+            case .brightness: [.white, Color(white: 0.9)]
+            case .warmth: [Color(red: 1.0, green: 0.86, blue: 0.63), Color(red: 1.0, green: 0.55, blue: 0.20)]
+            }
+        }
+        var glyph: String { self == .brightness ? "sun.max.fill" : "moon.fill" }
+    }
+
     var value: Float
+    var tint: Tint = .brightness
     var onChange: (Float) -> Void
     @State private var lastDetent: Int = -1
 
@@ -450,10 +565,10 @@ private struct BrightnessSlider: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(.black.opacity(0.38))
                     .overlay(Capsule().strokeBorder(.white.opacity(0.06), lineWidth: 1))
-                Capsule().fill(LinearGradient(colors: [.white, Color(white: 0.9)], startPoint: .top, endPoint: .bottom))
+                Capsule().fill(LinearGradient(colors: tint.fill, startPoint: .top, endPoint: .bottom))
                     .frame(width: max(30, geo.size.width * CGFloat(value)))
                     .shadow(color: .black.opacity(0.25), radius: 2.5, y: 1)
-                Image(systemName: "sun.max.fill")
+                Image(systemName: tint.glyph)
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Color(red: 0.55, green: 0.4, blue: 0.16))
                     .padding(.leading, 9)
