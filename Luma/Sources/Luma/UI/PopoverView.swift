@@ -395,42 +395,47 @@ struct PopoverView: View {
         }
         .toggleStyle(WarmToggle())
 
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Spacer()
-                Text("\(Int((model.warmStrength * 100).rounded()))%  ·  \(NightShift.kelvin(for: model.warmStrength))K")
-                    .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-            BrightnessSlider(value: model.warmStrength, tint: .warmth) { model.setWarmStrength($0) }
-        }
-        .opacity(warmth.isWarm ? 1 : 0.45)
-
-        labeledSegment("SCHEDULE", selection: warmth.mode,
-            options: [(NightShift.Mode.manual, "Off"),
-                      (.sunsetToSunrise, "Sunset"),
-                      (.custom, "Custom")]) { model.setWarmSchedule($0) }
-
-        // Fixed height on purpose. Letting this row appear and vanish resized
-        // the card, and the resize animated: picking Custom slid everything
-        // down, leaving it slid back up. Every mode occupies the same space,
-        // so the two without times explain themselves in it instead.
-        Group {
-            switch warmth.mode {
-            case .custom:
-                HStack(spacing: 8) {
-                    timeField("FROM", warmth.from) { model.setWarmTimes(from: $0, to: warmth.to) }
-                    timeField("TO", warmth.to) { model.setWarmTimes(from: warmth.from, to: $0) }
+        // Everything below is warmth's settings, so it only exists when
+        // warmth does. Off, the card is one row: a switch and nothing to
+        // read into. No animation on the reveal, because the resize is the
+        // thing that used to look like a glitch.
+        if warmth.isWarm {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Spacer()
+                    Text("\(Int((model.warmStrength * 100).rounded()))%  ·  \(NightShift.kelvin(for: model.warmStrength))K")
+                        .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.5))
                 }
-            case .sunsetToSunrise:
-                scheduleNote(warmth.sunSchedulePermitted
-                    ? "Follows sunset and sunrise where you are."
-                    : "Needs Location Services to know where you are.")
-            case .manual:
-                scheduleNote("No schedule. Warmth stays where you leave it.")
+                BrightnessSlider(value: model.warmStrength, tint: .warmth) { model.setWarmStrength($0) }
             }
+
+            labeledSegment("SCHEDULE", selection: warmth.mode,
+                options: [(NightShift.Mode.manual, "Off"),
+                          (.sunsetToSunrise, "Sunset"),
+                          (.custom, "Custom")]) { model.setWarmSchedule($0) }
+
+            // Fixed height on purpose. Letting this row appear and vanish
+            // resized the card mid-animation: picking Custom slid everything
+            // down, leaving it slid back up. Every mode occupies the same
+            // space, so the two without times explain themselves in it.
+            Group {
+                switch warmth.mode {
+                case .custom:
+                    HStack(spacing: 8) {
+                        timeField("FROM", warmth.from) { model.setWarmTimes(from: $0, to: warmth.to) }
+                        timeField("TO", warmth.to) { model.setWarmTimes(from: warmth.from, to: $0) }
+                    }
+                case .sunsetToSunrise:
+                    scheduleNote(warmth.sunSchedulePermitted
+                        ? "Follows sunset and sunrise where you are."
+                        : "Needs Location Services to know where you are.")
+                case .manual:
+                    scheduleNote("No schedule. Warmth stays where you leave it.")
+                }
+            }
+            .frame(height: 30)
         }
-        .frame(height: 30)
     }
 
     /// Deliberately not a DatePicker. The popover is a non-activating panel
