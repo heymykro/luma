@@ -63,6 +63,11 @@ final class AppModel: ObservableObject {
 
     /// macOS owns this state, so Luma stores none of it: every read comes
     /// straight from CoreBrightness and every write goes straight back.
+    ///
+    /// Called on every popover open as well as from the notification block.
+    /// The block is the live path, but it coalesces, so a burst of changes
+    /// can land as one late callback; re-reading on open costs one call and
+    /// means the card is never showing yesterday's value.
     func refreshWarmth() {
         warmth = NightShift.status()
         warmStrength = NightShift.strength
@@ -87,8 +92,11 @@ final class AppModel: ObservableObject {
         refreshWarmth()
     }
 
+    /// Times only, never the mode. A `.field` DatePicker commits its value as
+    /// it is torn down, so writing the mode here meant that leaving Custom
+    /// re-selected Custom on the way out and the segment could not be changed.
     func setWarmTimes(from: NightShift.Time, to: NightShift.Time) {
-        NightShift.applySchedule(.custom, from: from, to: to)
+        NightShift.setSchedule(from: from, to: to)
         refreshWarmth()
     }
 

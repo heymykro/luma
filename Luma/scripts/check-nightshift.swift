@@ -36,8 +36,13 @@ guard NightShift.isSupported, let before = NightShift.status() else {
 }
 // observe() is checked before anything else writes: registering the block is
 // what crashed at launch once, and it only fails when a write fires it.
+//
+// It also counts callbacks, because they coalesce: registering late or
+// writing in a burst can collapse several changes into one. That is why the
+// popover re-reads on open rather than trusting the block alone.
 var notified = false
-NightShift.observe { notified = true }
+var notifications = 0
+NightShift.observe { notified = true; notifications += 1 }
 
 let strengthBefore = NightShift.strength
 print("\nas found: active=\(before.active) mode=\(before.mode) "
@@ -48,8 +53,11 @@ print("\nas found: active=\(before.active) mode=\(before.mode) "
 NightShift.setActive(!before.active); usleep(400_000)
 check("setActive moves status().active", NightShift.status()?.active == !before.active)
 
+let beforeStrengthWrites = notifications
 NightShift.setStrength(0.42); usleep(400_000)
 check("strength reads back", abs(NightShift.strength - 0.42) < 0.001)
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+print("       (that write notified \(notifications - beforeStrengthWrites)x)")
 
 NightShift.applySchedule(.custom, from: .init(hour: 21, minute: 15), to: .init(hour: 6, minute: 45))
 usleep(400_000)

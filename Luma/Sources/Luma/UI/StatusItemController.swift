@@ -108,6 +108,7 @@ final class StatusItemController: NSObject {
         guard let button = statusItem.button, !popover.isVisible else { return }
         controller.refreshAppleLevels()
         model.refresh()
+        model.refreshWarmth()
         popover.toggle(relativeTo: button)
     }
 
@@ -191,6 +192,10 @@ final class StatusItemController: NSObject {
         } else {
             controller.refreshAppleLevels()
             model.refresh()
+            // Night Shift can be moved from Control Center or System
+            // Settings while the popover is shut. The notification block
+            // covers that, but it coalesces; re-reading on open is one call.
+            model.refreshWarmth()
             model.launchAtLogin = LaunchAtLogin.isEnabled
             popover.toggle(relativeTo: button)
         }
