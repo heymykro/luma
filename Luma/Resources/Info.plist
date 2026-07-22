@@ -39,5 +39,7 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 heymykro · MIT License</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Luma works out tonight's sunset and sunrise so it can show them beside the warmth schedule. Your location never leaves this Mac and is never saved.</string>
 </dict>
 </plist>

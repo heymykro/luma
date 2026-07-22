@@ -45,7 +45,7 @@ release: app
 check:
 	@T=$$(mktemp -d); cp scripts/check-nightshift.swift $$T/main.swift; \
 	swiftc Sources/Luma/Engine/NightShift.swift Sources/Luma/Support/Commands.swift \
-	       $$T/main.swift -o $$T/check && $$T/check; \
+	       Sources/Luma/Support/SolarTimes.swift $$T/main.swift -o $$T/check && $$T/check; \
 	R=$$?; rm -rf $$T; exit $$R
 
 clean:

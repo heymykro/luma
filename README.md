@@ -11,7 +11,7 @@ small, free, open-source menu-bar app that just does the thing:
 - **Keyboard brightness keys work on every display**: route them to *all displays* or *the display under your mouse pointer*; hold a modifier (**⌥** by default, configurable: ⌥/⌃/⇧/⌘) to temporarily use the other routing.
 - **All display types**: built-in panels and Apple displays (Studio Display, Pro Display XDR, UltraFine) via Apple's native brightness path, everything else via DDC/CI on Apple Silicon.
 - Works with **any keyboard**: standard brightness keys (HID consumer usages), Apple-style media keys (including rotary knobs on QMK/VIA boards), and optional F14/F15 legacy keys.
-- **Warmth**: macOS Night Shift on a slider, with its schedule (off, sunset to sunrise, or custom times) in the same panel. Driven through the OS rather than a second gamma layer, so it composes with sub-zero dimming.
+- **Warmth**: macOS Night Shift on a slider, with its schedule (off, sunset to sunrise, or custom times) in the same panel, and tonight's actual sunset and sunrise beside it. Driven through the OS rather than a second gamma layer, so it composes with sub-zero dimming.
 - **Sub-zero dimming**: keep going past the hardware backlight floor via the display's gamma table, which also covers displays with no DDC at all.
 - **Profiles**: named per-display snapshots ("Day", "Movie"), applied from the tray or a `luma://` URL.
 - **`luma://` URL scheme**: `set`, `up`, `down`, `warm`, `profile/<name>`, `pause`. Drives Shortcuts, Raycast, or a shell script today.
@@ -56,6 +56,7 @@ complain: right-click **Luma.app → Open → Open**, or clear quarantine with
 ### Permissions
 
 - **Accessibility**: required *only* for intercepting keyboard brightness keys. Sliders work without it. macOS prompts on first launch; you can also grant later from the popover.
+- **Location** (optional): asked for only if you pick the sunset-to-sunrise warmth schedule, and only to print tonight's times next to it. Night Shift's daemon knows them but exposes no way to read them, so Luma computes them. Decline and everything still works; the label just says "sunset and sunrise" instead of the times. Nothing is transmitted or saved.
 
 ## Repository layout
 
@@ -75,7 +76,7 @@ and read the comment first.
 | `Input/` | `KeyTap` (CGEventTap: both key event routes, scroll-over-tray, flip modifier, watchdog) · `Accessibility` |
 | `State/` | `Settings` (Codable JSON in the config dir) · `Profiles` (named per-display snapshots) · `Store` (thread-safe canonical state) |
 | `UI/` | `StatusItemController` · `TrayIcon` (the drawn sunrise gauge) · `TrayMenu` · `PopoverPanel` (non-activating panel) · `PopoverView` (SwiftUI) · `HUDController` |
-| `Support/` | `Commands` (the `luma://` vocabulary) · `ConfigWatcher` (live reload of hand-edited JSON) · `Updater` + `Version` (release checks) · `LaunchAtLogin` (SMAppService) · `Diagnostics` · `Log` |
+| `Support/` | `SolarTimes` (sunrise/sunset, and a one-shot location fix) · `Commands` (the `luma://` vocabulary) · `ConfigWatcher` (live reload of hand-edited JSON) · `Updater` + `Version` (release checks) · `LaunchAtLogin` (SMAppService) · `Diagnostics` · `Log` |
 
 ## How it works
 

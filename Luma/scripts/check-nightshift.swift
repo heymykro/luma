@@ -39,6 +39,55 @@ check("a full day is a no-op", t.advanced(byMinutes: 1440) == t)
 check("22:00 on 15m -> 22:15", NightShift.Time(hour: 22, minute: 0)
         .advanced(byMinutes: 15) == .init(hour: 22, minute: 15))
 
+// ── solar maths ────────────────────────────────────────────────────────
+// Checked against invariants rather than an almanac, because an almanac
+// figure I half-remember is not evidence. Day lengths at the solstices are
+// the exception: those two are textbook constants.
+func utc(_ y: Int, _ mo: Int, _ d: Int) -> Date {
+    var c = DateComponents(); c.year = y; c.month = mo; c.day = d; c.hour = 12
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = TimeZone(identifier: "UTC")!
+    return cal.date(from: c)!
+}
+func hhmmUTC(_ d: Date) -> Double {
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = TimeZone(identifier: "UTC")!
+    let c = cal.dateComponents([.hour, .minute], from: d)
+    return Double(c.hour!) + Double(c.minute!) / 60
+}
+func dayLength(_ lat: Double, _ lon: Double, _ date: Date) -> Double? {
+    SolarTimes.riseAndSet(latitude: lat, longitude: lon, on: date)
+        .map { $0.sunset.timeIntervalSince($0.sunrise) / 3600 }
+}
+
+// Equator at an equinox: the sun rises at 06:00 and sets at 18:00 local
+// solar time, which at longitude 0 is UTC. This is the shape of the whole
+// algorithm; get a sign wrong and it moves hours.
+if let e = SolarTimes.riseAndSet(latitude: 0, longitude: 0, on: utc(2026, 3, 20)) {
+    check("equator equinox rises ~06:00 UTC", abs(hhmmUTC(e.sunrise) - 6) < 0.2)
+    check("equator equinox sets ~18:00 UTC", abs(hhmmUTC(e.sunset) - 18) < 0.2)
+    check("equator equinox day is ~12h", abs(e.sunset.timeIntervalSince(e.sunrise) / 3600 - 12) < 0.2)
+} else { check("equator equinox resolves", false) }
+
+// Longitude shifts the clock by 4 minutes per degree and nothing else.
+if let a = SolarTimes.riseAndSet(latitude: 0, longitude: 0, on: utc(2026, 3, 20)),
+   let b = SolarTimes.riseAndSet(latitude: 0, longitude: 15, on: utc(2026, 3, 20)) {
+    let shift = a.sunrise.timeIntervalSince(b.sunrise) / 60
+    check("15 deg east is 1h earlier", abs(shift - 60) < 3)
+}
+
+// Textbook solstice day lengths, north and south.
+check("London solstice day ~16h39m", dayLength(51.5074, -0.1278, utc(2026, 6, 21)).map { abs($0 - 16.65) < 0.15 } ?? false)
+check("Sydney solstice day ~9h54m", dayLength(-33.8688, 151.2093, utc(2026, 6, 21)).map { abs($0 - 9.9) < 0.15 } ?? false)
+check("Sydney summer day ~14h25m", dayLength(-33.8688, 151.2093, utc(2026, 12, 21)).map { abs($0 - 14.4) < 0.15 } ?? false)
+
+// Above the Arctic circle in June the sun never sets, and there is no time
+// to print. Returning a bogus one would be worse than saying nothing.
+check("polar day returns nothing",
+      SolarTimes.riseAndSet(latitude: 78.22, longitude: 15.63, on: utc(2026, 6, 21)) == nil)
+check("polar night returns nothing",
+      SolarTimes.riseAndSet(latitude: 78.22, longitude: 15.63, on: utc(2026, 12, 21)) == nil)
+
 guard NightShift.isSupported, let before = NightShift.status() else {
     print("\nCoreBrightness unavailable; skipped the live round trip.")
     exit(failures == 0 ? 0 : 1)

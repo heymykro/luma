@@ -86,6 +86,28 @@ final class AppModel: ObservableObject {
         if warmth?.isWarm == false { setWarmActive(true) }
     }
 
+    /// Night Shift knows tonight's sunset and will not tell us, so we work
+    /// it out. The location fix is asked for here and nowhere else: only a
+    /// user who has picked a sunset schedule has any reason to be prompted.
+    func sunsetLine(permitted: Bool) -> String {
+        guard permitted else { return "Needs Location Services to know where you are." }
+        guard let here = LocationOnce.shared.coordinate else {
+            LocationOnce.shared.request { [weak self] in self?.objectWillChange.send() }
+            return LocationOnce.shared.isDenied
+                ? "Follows sunset and sunrise where you are."
+                : "Finding sunset where you are\u{2026}"
+        }
+        guard let solar = SolarTimes.riseAndSet(latitude: here.latitude,
+                                                longitude: here.longitude, on: Date()) else {
+            // Inside a polar circle there is no sunrise today to name.
+            return "Follows sunset and sunrise where you are."
+        }
+        let clock = DateFormatter()
+        clock.timeStyle = .short
+        clock.dateStyle = .none
+        return "Tonight \(clock.string(from: solar.sunset)) to \(clock.string(from: solar.sunrise))"
+    }
+
     func setWarmSchedule(_ mode: NightShift.Mode) {
         let current = warmth ?? NightShift.Status()
         NightShift.applySchedule(mode, from: current.from, to: current.to)
@@ -427,9 +449,7 @@ struct PopoverView: View {
                         timeField("TO", warmth.to) { model.setWarmTimes(from: warmth.from, to: $0) }
                     }
                 case .sunsetToSunrise:
-                    scheduleNote(warmth.sunSchedulePermitted
-                        ? "Follows sunset and sunrise where you are."
-                        : "Needs Location Services to know where you are.")
+                    scheduleNote(model.sunsetLine(permitted: warmth.sunSchedulePermitted))
                 case .manual:
                     scheduleNote("No schedule. Warmth stays where you leave it.")
                 }
