@@ -48,8 +48,13 @@ enum NightShift {
     }
 
     struct Status: Equatable {
-        var active = false               // warmth applying right now
-        var scheduleEnabled = false      // a schedule is armed (independent of `active`)
+        /// Warmth applying right now. Necessary but NOT sufficient: with
+        /// `enabled` false the screen stays neutral no matter what this says.
+        var active = false
+        /// The master switch, and the field that cost the most to work out.
+        /// With no schedule it is the only thing that makes warmth render;
+        /// with one it doubles as the schedule's arming flag.
+        var enabled = false
         var sunSchedulePermitted = false // false when Location Services can't place you
         var mode: Mode = .manual
         var from = Time(hour: 22, minute: 0)
@@ -130,7 +135,7 @@ enum NightShift {
         }
         var s = Status()
         s.active = buffer[0] == 1
-        s.scheduleEnabled = buffer[1] == 1
+        s.enabled = buffer[1] == 1
         s.sunSchedulePermitted = buffer[2] == 1
         s.mode = Mode(rawValue: int32(at: 4)) ?? .manual
         s.from = Time(hour: Int(int32(at: 8)), minute: Int(int32(at: 12)))
@@ -175,12 +180,16 @@ enum NightShift {
         return set(c, Selector(("setMode:")), mode.rawValue)
     }
 
-    /// Arms or disarms the schedule. Separate from `setMode:`, and both are
-    /// needed: setting mode to `.custom` alone leaves `scheduleEnabled` false
-    /// and nothing happens at the appointed hour. (`.sunsetToSunrise` does
-    /// arm itself, but relying on that asymmetry would be a trap.)
+    /// The master switch. Two jobs, which is what made it confusing:
+    /// with a schedule it arms that schedule (setting mode to `.custom` alone
+    /// leaves it false and nothing happens at the appointed hour), and with
+    /// no schedule it is the whole feature's on/off.
+    ///
+    /// Verified by hand on 2026-07-23: mode `.manual` + active true + this
+    /// false renders nothing at all; flipping this true turns the screen
+    /// orange immediately, on every display.
     @discardableResult
-    static func setScheduleEnabled(_ on: Bool) -> Bool {
+    static func setEnabled(_ on: Bool) -> Bool {
         guard let c = client, let set = fn("setEnabled:", SetBoolFn.self) else { return false }
         return set(c, Selector(("setEnabled:")), on)
     }
@@ -196,12 +205,24 @@ enum NightShift {
         return withUnsafeBytes(of: &payload) { set(c, Selector(("setSchedule:")), $0.baseAddress!) }
     }
 
-    /// One call for what the popover's schedule picker means, so mode and the
-    /// enable flag can never drift apart.
+    /// The schedule picker sets the mode, and arms it when there is one to
+    /// arm. "Off" means no schedule, not no warmth, so warmth that was on
+    /// stays on: `setMode(.manual)` clears the master switch as a side effect,
+    /// which is precisely why picking Off used to kill warmth outright.
+    /// Re-asserting it afterwards sticks.
     static func applySchedule(_ mode: Mode, from: Time, to: Time) {
+        let wasOn = status()?.active ?? false
         if mode == .custom { setSchedule(from: from, to: to) }
         setMode(mode)
-        setScheduleEnabled(mode != .manual)
+        if mode == .manual { setEnabled(wasOn) } else { setEnabled(true) }
+    }
+
+    /// The warmth toggle. With no schedule the master switch is the switch;
+    /// with one it belongs to the schedule, so turning warmth off there means
+    /// "off until the next scheduled change", which is `setActive:` alone.
+    static func setWarmth(on: Bool, scheduled: Bool) {
+        if !scheduled { setEnabled(on) }
+        setActive(on)
     }
 
     // MARK: - Change notifications

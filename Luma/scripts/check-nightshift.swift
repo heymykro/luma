@@ -75,7 +75,24 @@ check("custom schedule round-trips",
       scheduled?.mode == .custom
       && scheduled?.from == NightShift.Time(hour: 21, minute: 15)
       && scheduled?.to == NightShift.Time(hour: 6, minute: 45))
-check("custom mode arms the schedule", scheduled?.scheduleEnabled == true)
+check("custom mode arms the schedule", scheduled?.enabled == true)
+
+// The one that took a human looking at a screen to settle: with no schedule,
+// `enabled` is the master switch, and warmth renders only when it is true.
+// setMode(.manual) clears it as a side effect, so switching the schedule off
+// while warmth is on has to put it back or the screen goes neutral.
+NightShift.setWarmth(on: true, scheduled: false); usleep(300_000)
+NightShift.applySchedule(.manual, from: before.from, to: before.to)
+usleep(400_000)
+check("schedule Off keeps warmth on", NightShift.status()?.enabled == true)
+NightShift.setWarmth(on: false, scheduled: false); usleep(300_000)
+NightShift.applySchedule(.manual, from: before.from, to: before.to)
+usleep(400_000)
+check("schedule Off leaves warmth off", NightShift.status()?.enabled == false)
+NightShift.setWarmth(on: false, scheduled: false); usleep(400_000)
+check("warmth off clears both", NightShift.status().map { !$0.enabled && !$0.active } == true)
+NightShift.setWarmth(on: true, scheduled: false); usleep(400_000)
+check("warmth on sets both", NightShift.status().map { $0.enabled && $0.active } == true)
 
 NightShift.applySchedule(before.mode, from: before.from, to: before.to)
 NightShift.setSchedule(from: before.from, to: before.to)

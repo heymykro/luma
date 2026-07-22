@@ -74,7 +74,7 @@ final class AppModel: ObservableObject {
     }
 
     func setWarmActive(_ on: Bool) {
-        NightShift.setActive(on)
+        NightShift.setWarmth(on: on, scheduled: warmth?.mode != .manual)
         refreshWarmth()
     }
 
