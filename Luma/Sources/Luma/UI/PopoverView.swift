@@ -402,59 +402,56 @@ struct PopoverView: View {
     }
 
     /// Warmth is macOS's Night Shift, not a gamma layer of our own, so this
-    /// card is a remote control for state that lives outside Luma. It shows
-    /// the schedule for the same reason: without it, a slider that moves by
-    /// itself at sunset looks like a bug.
-    @ViewBuilder
+    /// card is a remote control for state that lives outside Luma. The toggle
+    /// is always live; the settings below stay put and dim when warmth is off
+    /// rather than collapsing, so the card never changes height and the panel
+    /// never has to resize (which is what made the toggle jump).
     private func warmthCard(_ warmth: NightShift.Status) -> some View {
-        Toggle(isOn: Binding(get: { warmth.isWarm }, set: { model.setWarmActive($0) })) {
-            HStack(spacing: 7) {
-                Image(systemName: "moon.fill").font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.55)).frame(width: 14)
-                Text("Warmth").font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.92))
-            }
-        }
-        .toggleStyle(WarmToggle())
-
-        // Everything below is warmth's settings, so it only exists when
-        // warmth does. Off, the card is one row: a switch and nothing to
-        // read into. No animation on the reveal, because the resize is the
-        // thing that used to look like a glitch.
-        if warmth.isWarm {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Spacer()
-                    Text("\(Int((model.warmStrength * 100).rounded()))%  ·  \(NightShift.kelvin(for: model.warmStrength))K")
-                        .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.5))
+        VStack(alignment: .leading, spacing: 13) {
+            Toggle(isOn: Binding(get: { warmth.isWarm }, set: { model.setWarmActive($0) })) {
+                HStack(spacing: 7) {
+                    Image(systemName: "moon.fill").font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.55)).frame(width: 14)
+                    Text("Warmth").font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
                 }
-                BrightnessSlider(value: model.warmStrength, tint: .warmth) { model.setWarmStrength($0) }
             }
+            .toggleStyle(WarmToggle())
 
-            labeledSegment("SCHEDULE", selection: warmth.mode,
-                options: [(NightShift.Mode.manual, "Off"),
-                          (.sunsetToSunrise, "Sunset"),
-                          (.custom, "Custom")]) { model.setWarmSchedule($0) }
-
-            // Fixed height on purpose. Letting this row appear and vanish
-            // resized the card mid-animation: picking Custom slid everything
-            // down, leaving it slid back up. Every mode occupies the same
-            // space, so the two without times explain themselves in it.
-            Group {
-                switch warmth.mode {
-                case .custom:
-                    HStack(spacing: 8) {
-                        timeField("FROM", warmth.from) { model.setWarmTimes(from: $0, to: warmth.to) }
-                        timeField("TO", warmth.to) { model.setWarmTimes(from: warmth.from, to: $0) }
+            VStack(alignment: .leading, spacing: 13) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Spacer()
+                        Text("\(Int((model.warmStrength * 100).rounded()))%  ·  \(NightShift.kelvin(for: model.warmStrength))K")
+                            .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(.white.opacity(0.5))
                     }
-                case .sunsetToSunrise:
-                    scheduleNote(model.sunsetLine(permitted: warmth.sunSchedulePermitted))
-                case .manual:
-                    scheduleNote("No schedule. Warmth stays where you leave it.")
+                    BrightnessSlider(value: model.warmStrength, tint: .warmth) { model.setWarmStrength($0) }
                 }
+
+                labeledSegment("SCHEDULE", selection: warmth.mode,
+                    options: [(NightShift.Mode.manual, "Off"),
+                              (.sunsetToSunrise, "Sunset"),
+                              (.custom, "Custom")]) { model.setWarmSchedule($0) }
+
+                // Every mode fills the same space, so switching modes
+                // never resizes the card either.
+                Group {
+                    switch warmth.mode {
+                    case .custom:
+                        HStack(spacing: 8) {
+                            timeField("FROM", warmth.from) { model.setWarmTimes(from: $0, to: warmth.to) }
+                            timeField("TO", warmth.to) { model.setWarmTimes(from: warmth.from, to: $0) }
+                        }
+                    case .sunsetToSunrise:
+                        scheduleNote(model.sunsetLine(permitted: warmth.sunSchedulePermitted))
+                    case .manual:
+                        scheduleNote("No schedule. Warmth stays where you leave it.")
+                    }
+                }
+                .frame(height: 30)
             }
-            .frame(height: 30)
+            .opacity(warmth.isWarm ? 1 : 0.45)
         }
     }
 
@@ -465,7 +462,7 @@ struct PopoverView: View {
     /// Every other control in this panel is drawn by us for the same reason.
     private func timeField(_ label: String, _ time: NightShift.Time,
                            onChange: @escaping (NightShift.Time) -> Void) -> some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 5) {  // fills its 30pt slot; no maxHeight:.infinity
             Text(label).font(.system(size: 10, weight: .bold)).tracking(0.5)
                 .foregroundStyle(.white.opacity(0.4))
             Text(String(format: "%02d:%02d", time.hour, time.minute))
@@ -480,14 +477,14 @@ struct PopoverView: View {
             }
         }
         .padding(.horizontal, 9)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 30)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.white.opacity(0.05)))
     }
 
     private func scheduleNote(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 11)).foregroundStyle(.white.opacity(0.42))
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func stepArrow(_ icon: String, action: @escaping () -> Void) -> some View {

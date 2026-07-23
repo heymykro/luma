@@ -1,6 +1,26 @@
 import AppKit
 import SwiftUI
 
+/// HUD-material vibrancy as a SwiftUI background, so the whole popover can be a
+/// single SwiftUI view hosted by a controller that auto-sizes the window.
+/// That is what lets the warmth card animate its height: AppKit resizes the
+/// window in the same layout pass SwiftUI lays out, instead of a manual resize
+/// running a frame behind (which is what made every earlier attempt jump).
+struct HUDBackground: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let v = NSVisualEffectView()
+        v.material = .hudWindow
+        v.blendingMode = .behindWindow
+        v.state = .active
+        v.wantsLayer = true
+        v.layer?.cornerRadius = 22
+        v.layer?.cornerCurve = .continuous
+        v.layer?.masksToBounds = true
+        return v
+    }
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
+}
+
 /// The tray popover: a non-activating panel (never steals focus from the app
 /// you're in — the reason this isn't an NSPopover) with HUD-material
 /// vibrancy, shown under the status item, hidden on any outside click.
@@ -31,25 +51,22 @@ final class PopoverPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         becomesKeyOnlyIfNeeded = true
 
-        let effect = NSVisualEffectView()
-        effect.material = .hudWindow
-        effect.blendingMode = .behindWindow
-        effect.state = .active
-        effect.wantsLayer = true
-        effect.layer?.cornerRadius = 22
-        effect.layer?.cornerCurve = .continuous
-        effect.layer?.masksToBounds = true
+        // A hosting controller (not a hosting view) so the window follows the
+        // SwiftUI content's size automatically, animation frames included.
+        let controller = NSHostingController(
+            rootView: PopoverView(model: model)
+                .background(HUDBackground())
+        )
+        controller.sizingOptions = [.preferredContentSize]
+        contentViewController = controller
+    }
 
-        let hosting = NSHostingView(rootView: PopoverView(model: model))
-        hosting.translatesAutoresizingMaskIntoConstraints = false
-        effect.addSubview(hosting)
-        NSLayoutConstraint.activate([
-            hosting.leadingAnchor.constraint(equalTo: effect.leadingAnchor),
-            hosting.trailingAnchor.constraint(equalTo: effect.trailingAnchor),
-            hosting.topAnchor.constraint(equalTo: effect.topAnchor),
-            hosting.bottomAnchor.constraint(equalTo: effect.bottomAnchor),
-        ])
-        contentView = effect
+    /// Hold the top edge when the window sizes to its content on open, so the
+    /// popover hangs from the menu bar rather than being centred on its origin.
+    override func setContentSize(_ size: NSSize) {
+        let top = frame.maxY
+        super.setContentSize(size)
+        setFrameTopLeftPoint(NSPoint(x: frame.minX, y: top))
     }
 
     /// Toggle below the status item button.
@@ -58,7 +75,7 @@ final class PopoverPanel: NSPanel {
             close()
             return
         }
-        sizeToFitContent()
+        layoutIfNeeded()
         if let buttonWindow = button.window {
             let buttonFrame = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
             let size = frame.size
@@ -92,12 +109,5 @@ final class PopoverPanel: NSPanel {
         refreshTimer?.invalidate()
         refreshTimer = nil
         orderOut(nil)
-    }
-
-    private func sizeToFitContent() {
-        contentView?.layoutSubtreeIfNeeded()
-        if let size = contentView?.fittingSize, size.height > 0 {
-            setContentSize(size)
-        }
     }
 }
