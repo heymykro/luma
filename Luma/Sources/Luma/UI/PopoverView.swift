@@ -571,10 +571,12 @@ private struct WarmToggle: ToggleStyle {
                     .padding(.horizontal, 2)
             }
             .frame(width: 36, height: 21)
-            .contentShape(Rectangle())
-            .onTapGesture { configuration.$isOn.wrappedValue.toggle() }
             .animation(.easeOut(duration: 0.16), value: configuration.isOn)
         }
+        // Whole row is the hit target, label included: a 36pt pill is a small
+        // thing to ask someone to hit, and the words next to it look clickable.
+        .contentShape(Rectangle())
+        .onTapGesture { configuration.$isOn.wrappedValue.toggle() }
     }
 }
 

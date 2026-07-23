@@ -222,11 +222,20 @@ enum NightShift {
         if mode == .manual { setEnabled(wasOn) } else { setEnabled(true) }
     }
 
-    /// The warmth toggle. With no schedule the master switch is the switch;
-    /// with one it belongs to the schedule, so turning warmth off there means
-    /// "off until the next scheduled change", which is `setActive:` alone.
+    /// The warmth toggle. Turning it ON always renders: both flags set, no
+    /// matter the schedule, because "warm now" that leaves the screen neutral
+    /// is exactly the bug this replaces.
+    ///
+    /// Turning it OFF depends on whether a schedule is armed. With one, off
+    /// means "off until the next scheduled change", so the master switch
+    /// stays and only `active` drops. Without one, there is nothing to keep
+    /// armed, so both drop.
     static func setWarmth(on: Bool, scheduled: Bool) {
-        if !scheduled { setEnabled(on) }
+        if on {
+            setEnabled(true)
+        } else if !scheduled {
+            setEnabled(false)
+        }
         setActive(on)
     }
 

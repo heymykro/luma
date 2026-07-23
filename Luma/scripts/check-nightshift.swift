@@ -144,6 +144,16 @@ NightShift.setWarmth(on: true, scheduled: false); usleep(400_000)
 check("warmth on sets both", NightShift.status().map { $0.enabled && $0.active } == true)
 check("isWarm agrees when on", NightShift.status()?.isWarm == true)
 
+// The toggle bug: warmth on while a schedule is armed must still render, not
+// just set active and leave the master switch off.
+NightShift.applySchedule(.sunsetToSunrise, from: before.from, to: before.to)
+NightShift.setWarmth(on: false, scheduled: true); usleep(300_000)
+NightShift.setEnabled(false); usleep(300_000)   // force the neutral-but-armed state
+NightShift.setWarmth(on: true, scheduled: true); usleep(400_000)
+check("toggle on renders under a schedule", NightShift.status()?.isWarm == true)
+NightShift.setWarmth(on: false, scheduled: true); usleep(300_000)
+check("toggle off under a schedule keeps it armed", NightShift.status()?.enabled == true)
+
 // active alone is what the toggle used to read, and this is the state that
 // exposed it: it says on, the screen says otherwise.
 NightShift.setActive(true); NightShift.setEnabled(false); usleep(400_000)
