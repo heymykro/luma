@@ -1,21 +1,21 @@
 import CoreGraphics
 import Foundation
+import os
 
 /// A value guarded by an unfair lock. The event-tap callback runs on its own
 /// thread and reads flags on every keystroke; this keeps those reads cheap
 /// without pulling in a dependency for atomics.
 final class Locked<Value>: @unchecked Sendable {
-    private var value: Value
-    private let lock = UnfairLock()
+    private let lock: OSAllocatedUnfairLock<Value>
 
-    init(_ value: Value) { self.value = value }
+    init(_ value: Value) { lock = OSAllocatedUnfairLock(uncheckedState: value) }
 
-    func get() -> Value { lock.sync { value } }
+    func get() -> Value { lock.withLockUnchecked { $0 } }
 
-    func set(_ newValue: Value) { lock.sync { value = newValue } }
+    func set(_ newValue: Value) { lock.withLockUnchecked { $0 = newValue } }
 
     @discardableResult
-    func withLock<R>(_ body: (inout Value) -> R) -> R { lock.sync { body(&value) } }
+    func withLock<R>(_ body: (inout Value) -> R) -> R { lock.withLockUnchecked(body) }
 }
 
 /// Thread-safe canonical state. UI observes via `onChange` (delivered on the

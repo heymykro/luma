@@ -1,11 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// HUD-material vibrancy as a SwiftUI background, so the whole popover can be a
-/// single SwiftUI view hosted by a controller that auto-sizes the window.
-/// That is what lets the warmth card animate its height: AppKit resizes the
-/// window in the same layout pass SwiftUI lays out, instead of a manual resize
-/// running a frame behind (which is what made every earlier attempt jump).
+/// HUD-material vibrancy as a SwiftUI background, so the whole popover is one
+/// auto-sized view; oversized content scrolls within the current screen.
 struct HUDBackground: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let v = NSVisualEffectView()
@@ -25,6 +22,7 @@ struct HUDBackground: NSViewRepresentable {
 /// you're in — the reason this isn't an NSPopover) with HUD-material
 /// vibrancy, shown under the status item, hidden on any outside click.
 final class PopoverPanel: NSPanel {
+    private let model: AppModel
     private var clickMonitor: Any?
     private var refreshTimer: Timer?
     /// Fired ~4x/sec while the panel is open so the sliders track brightness
@@ -33,8 +31,9 @@ final class PopoverPanel: NSPanel {
     var onTick: (() -> Void)?
 
     init(model: AppModel) {
+        self.model = model
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 100),
+            contentRect: NSRect(x: 0, y: 0, width: 304, height: 100),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -52,7 +51,7 @@ final class PopoverPanel: NSPanel {
         becomesKeyOnlyIfNeeded = true
 
         // A hosting controller (not a hosting view) so the window follows the
-        // SwiftUI content's size automatically, animation frames included.
+        // SwiftUI content's size automatically.
         let controller = NSHostingController(
             rootView: PopoverView(model: model)
                 .background(HUDBackground())
@@ -74,6 +73,9 @@ final class PopoverPanel: NSPanel {
         if isVisible {
             close()
             return
+        }
+        if let screen = button.window?.screen {
+            model.panelMaxHeight = max(240, screen.visibleFrame.height - 12)
         }
         layoutIfNeeded()
         if let buttonWindow = button.window {

@@ -5,6 +5,21 @@ All notable changes to Luma are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and Luma uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-beta.1] - 2026-07-23
+
+_Screen warmth, driven through macOS Night Shift._
+
+### Added
+
+- **Screen warmth.** A warmth slider in the panel, backing directly onto macOS Night Shift rather than a gamma tint of Luma's own. Because it's a separate stage from the sub-zero dimmer, warmth and dimming compose instead of fighting, and it survives sleep, wake, and display changes for free. The slider reads out both strength and colour temperature (e.g. `50% · 4100K`).
+- **Warmth schedule.** Off, sunset-to-sunrise, or custom times, set from the same card. Pick **Sunset** and Luma shows tonight's actual sunset and sunrise, computed on-device from a one-time, low-accuracy location fix. Decline location and it falls back to a plain label; nothing is transmitted or stored.
+- **`luma://warm`.** Drive warmth from Shortcuts or a script: `luma://warm?level=40` sets and turns it on, `luma://warm?on=false` turns it off, bare `luma://warm` toggles.
+- **Update checks while running.** Luma now checks for a newer release on an hourly tick, not only at launch, so a menu-bar app left running for weeks still hears about a release. Still at most once a day, still silent unless there's something newer, still no telemetry.
+
+### Fixed
+
+- Corrected the app's size claim in prior notes: the bundle is under 1 MB.
+
 ## [0.1.0-beta.1] - 2026-07-21
 
 _First public beta: native Swift, under 1 MB, zero dependencies._

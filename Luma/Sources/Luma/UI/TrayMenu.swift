@@ -1,5 +1,20 @@
 import AppKit
 
+func promptForProfileName() -> String? {
+    let alert = NSAlert()
+    alert.messageText = "Save Profile"
+    alert.informativeText = "Name this set of brightness levels."
+    alert.addButton(withTitle: "Save")
+    alert.addButton(withTitle: "Cancel")
+    let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
+    field.placeholderString = "Day"
+    alert.accessoryView = field
+    NSApp.activate(ignoringOtherApps: true)
+    guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+    let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    return name.isEmpty ? nil : name
+}
+
 /// Right-click quick-actions menu, rebuilt on every open so checkmarks
 /// always reflect canonical state. Mirrors the Tauri POC's menu exactly.
 enum TrayMenu {
@@ -197,19 +212,8 @@ private final class MenuActions: NSObject {
     }
 
     @objc func saveProfileDialog() {
-        let alert = NSAlert()
-        alert.messageText = "Save Current as Profile"
-        alert.informativeText = "Snapshots every display's current brightness by name."
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
-        field.placeholderString = "Profile name"
-        alert.accessoryView = field
-        NSApp.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertFirstButtonReturn {
-            let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !name.isEmpty { controller.saveProfile(name) }
-        }
+        guard let name = promptForProfileName() else { return }
+        controller.saveProfile(name)
     }
 
     @objc func copyDiagnostics() {

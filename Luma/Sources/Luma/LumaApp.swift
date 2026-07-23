@@ -141,8 +141,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statusController.refreshIcon()
             store.notifyChanged()
         case .warm(let level, let on):
+            let status = NightShift.status()
             if let level { NightShift.setStrength(level) }
-            NightShift.setActive(on ?? !(NightShift.status()?.active ?? false))
+            NightShift.setWarmth(
+                on: on ?? !(status?.isWarm ?? false),
+                scheduled: status.map { $0.mode != .manual } ?? false
+            )
         }
     }
 

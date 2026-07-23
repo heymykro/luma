@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import os
 
 /// The live menu bar mark: a half-sun on a horizon whose ray count tracks
 /// brightness (3 rays dim → 7 bright). At 0% the sun sets and a moon rises;
@@ -27,13 +28,13 @@ enum TrayIcon {
 
     // Settled (integer-ray) states are cached; animation frames render live.
     private static var cache: [String: NSImage] = [:]
-    private static let cacheLock = UnfairLock()
+    private static let cacheLock = OSAllocatedUnfairLock()
 
     /// A settled, cached image.
     static func image(brightness: Float, paused: Bool) -> NSImage {
         let (rays, mode) = state(brightness: brightness, paused: paused)
         let key = "\(mode)-\(Int(rays))"
-        return cacheLock.sync {
+        return cacheLock.withLockUnchecked {
             if let img = cache[key] { return img }
             let img = wrap(render(rayFloat: rays, mode: mode, sweep: nil))
             cache[key] = img

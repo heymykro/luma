@@ -10,6 +10,7 @@ final class AppModel: ObservableObject {
     /// nil when CoreBrightness isn't there to drive, which hides the card.
     @Published var warmth: NightShift.Status?
     @Published var warmStrength: Float = 0
+    @Published var panelMaxHeight: CGFloat = 700
 
     fileprivate(set) var controller: BrightnessController?
     private let store: Store
@@ -141,26 +142,10 @@ final class AppModel: ObservableObject {
 
     func refreshDisplays() { controller?.scheduleRescan() }
 
-    func copyDiagnostics() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(Diagnostics.text(store: store), forType: .string)
-    }
+    func copyDiagnostics() { Diagnostics.copyToClipboard(store: store) }
 
-    /// Name prompt for a new profile. Mirrors the tray menu's dialog so both
-    /// entry points behave identically.
     func saveProfileDialog() {
-        let alert = NSAlert()
-        alert.messageText = "Save Profile"
-        alert.informativeText = "Name this set of brightness levels."
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
-        field.placeholderString = "Day"
-        alert.accessoryView = field
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let name = field.stringValue.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
+        guard let name = promptForProfileName() else { return }
         controller?.saveProfile(name)
         objectWillChange.send()
     }
@@ -184,7 +169,15 @@ struct PopoverView: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        ViewThatFits(in: .vertical) {
+            panelContent
+            ScrollView(.vertical) { panelContent }
+        }
+        .frame(maxHeight: model.panelMaxHeight)
+    }
+
+    private var panelContent: some View {
+        VStack(alignment: .leading, spacing: 7) {
             header
             if !model.settings.hasOnboarded { welcome }
             if !model.axTrusted { axBanner }
@@ -234,8 +227,8 @@ struct PopoverView: View {
 
             footer
         }
-        .padding(15)
-        .frame(width: 320)
+        .padding(10)
+        .frame(width: 304)
     }
 
     // MARK: - Pieces
@@ -317,7 +310,7 @@ struct PopoverView: View {
     private var emptyState: some View {
         let excludedCount = model.displays.filter(\.excluded).count
         let failing = model.displays.filter(\.writeFailed)
-        VStack(spacing: 9) {
+        VStack(spacing: 5) {
             Image(systemName: "sun.horizon")
                 .font(.system(size: 26, weight: .light))
                 .foregroundStyle(.white.opacity(0.35))
@@ -344,7 +337,7 @@ struct PopoverView: View {
             }
             Button(action: { model.controller?.scheduleRescan() }) {
                 Text("Reconnect").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.inkOnWarm)
-                    .padding(.horizontal, 14).padding(.vertical, 6)
+                    .padding(.horizontal, 12).padding(.vertical, 4)
                     .background(Capsule().fill(LinearGradient(colors: [.warmHot, .warm], startPoint: .top, endPoint: .bottom)))
             }
             .buttonStyle(.plain)
@@ -352,13 +345,13 @@ struct PopoverView: View {
         }
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
+        .padding(.vertical, 5)
     }
 
     /// First-run hello. Adapts to whether the keys are live yet, so the last
     /// step is always "now press it" — the first HUD is the celebration.
     private var welcome: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 5) {
             Text("Brightness for every display.")
                 .font(.system(size: 13.5, weight: .bold)).foregroundStyle(.white)
             Text(model.axTrusted
@@ -368,20 +361,20 @@ struct PopoverView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Button(action: { model.updateSettings { $0.hasOnboarded = true } }) {
                 Text("Got it").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.inkOnWarm)
-                    .padding(.horizontal, 14).padding(.vertical, 6)
+                    .padding(.horizontal, 12).padding(.vertical, 4)
                     .background(Capsule().fill(LinearGradient(colors: [.warmHot, .warm], startPoint: .top, endPoint: .bottom)))
             }
             .buttonStyle(.plain)
             .padding(.top, 2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(13)
-        .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(Color.warm.opacity(0.10)))
-        .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).strokeBorder(Color.warm.opacity(0.22), lineWidth: 1))
+        .padding(9)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.warm.opacity(0.10)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.warm.opacity(0.22), lineWidth: 1))
     }
 
     private var axBanner: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
             Text("Enable keyboard keys")
                 .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white)
             Text("Luma needs Accessibility to intercept brightness keys.")
@@ -390,15 +383,15 @@ struct PopoverView: View {
             // the list and shows the dialog; openSystemSettings is the fallback.
             Button(action: { if !Accessibility.prompt() { Accessibility.openSystemSettings() } }) {
                 Text("Grant Access…").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.inkOnWarm)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .padding(.horizontal, 11).padding(.vertical, 4)
                     .background(Capsule().fill(LinearGradient(colors: [.warmHot, .warm], startPoint: .top, endPoint: .bottom)))
             }
             .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(13)
-        .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(Color.warm.opacity(0.12)))
-        .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).strokeBorder(Color.warm.opacity(0.25), lineWidth: 1))
+        .padding(9)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.warm.opacity(0.12)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.warm.opacity(0.25), lineWidth: 1))
     }
 
     /// Warmth is macOS's Night Shift, not a gamma layer of our own, so this
@@ -407,7 +400,7 @@ struct PopoverView: View {
     /// rather than collapsing, so the card never changes height and the panel
     /// never has to resize (which is what made the toggle jump).
     private func warmthCard(_ warmth: NightShift.Status) -> some View {
-        VStack(alignment: .leading, spacing: 13) {
+        VStack(alignment: .leading, spacing: 8) {
             Toggle(isOn: Binding(get: { warmth.isWarm }, set: { model.setWarmActive($0) })) {
                 HStack(spacing: 7) {
                     Image(systemName: "moon.fill").font(.system(size: 11, weight: .semibold))
@@ -418,15 +411,16 @@ struct PopoverView: View {
             }
             .toggleStyle(WarmToggle())
 
-            VStack(alignment: .leading, spacing: 13) {
-                VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
                     HStack {
                         Spacer()
                         Text("\(Int((model.warmStrength * 100).rounded()))%  ·  \(NightShift.kelvin(for: model.warmStrength))K")
                             .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
                             .foregroundStyle(.white.opacity(0.5))
                     }
-                    BrightnessSlider(value: model.warmStrength, tint: .warmth) { model.setWarmStrength($0) }
+                    BrightnessSlider(value: model.warmStrength, tint: .warmth,
+                                     label: "Warmth") { model.setWarmStrength($0) }
                 }
 
                 labeledSegment("SCHEDULE", selection: warmth.mode,
@@ -449,7 +443,7 @@ struct PopoverView: View {
                         scheduleNote("No schedule. Warmth stays where you leave it.")
                     }
                 }
-                .frame(height: 30)
+                .frame(height: 24)
             }
             .opacity(warmth.isWarm ? 1 : 0.45)
         }
@@ -462,7 +456,7 @@ struct PopoverView: View {
     /// Every other control in this panel is drawn by us for the same reason.
     private func timeField(_ label: String, _ time: NightShift.Time,
                            onChange: @escaping (NightShift.Time) -> Void) -> some View {
-        HStack(spacing: 5) {  // fills its 30pt slot; no maxHeight:.infinity
+        HStack(spacing: 5) {
             Text(label).font(.system(size: 10, weight: .bold)).tracking(0.5)
                 .foregroundStyle(.white.opacity(0.4))
             Text(String(format: "%02d:%02d", time.hour, time.minute))
@@ -472,13 +466,17 @@ struct PopoverView: View {
             // Quarter-hour steps: enough resolution for a sunset, and it puts
             // a whole day inside a few taps.
             VStack(spacing: 2) {
-                stepArrow("chevron.up") { onChange(time.advanced(byMinutes: 15)) }
-                stepArrow("chevron.down") { onChange(time.advanced(byMinutes: -15)) }
+                stepArrow("chevron.up", label: "Increase \(label) time") {
+                    onChange(time.advanced(byMinutes: 15))
+                }
+                stepArrow("chevron.down", label: "Decrease \(label) time") {
+                    onChange(time.advanced(byMinutes: -15))
+                }
             }
         }
-        .padding(.horizontal, 9)
-        .frame(maxWidth: .infinity, minHeight: 30)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.white.opacity(0.05)))
+        .padding(.horizontal, 7)
+        .frame(maxWidth: .infinity, minHeight: 24)
+        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.05)))
     }
 
     private func scheduleNote(_ text: String) -> some View {
@@ -487,19 +485,22 @@ struct PopoverView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func stepArrow(_ icon: String, action: @escaping () -> Void) -> some View {
-        Image(systemName: icon)
-            .font(.system(size: 7, weight: .black))
-            .foregroundStyle(.white.opacity(0.55))
-            .frame(width: 16, height: 9)
-            .background(RoundedRectangle(cornerRadius: 3, style: .continuous).fill(.white.opacity(0.07)))
-            .contentShape(Rectangle())
-            .onTapGesture(perform: action)
+    private func stepArrow(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 7, weight: .black))
+                .foregroundStyle(.white.opacity(0.55))
+                .frame(width: 16, height: 9)
+                .background(RoundedRectangle(cornerRadius: 3, style: .continuous).fill(.white.opacity(0.07)))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(label))
     }
 
     private func sliderRow(icon: String, label: String, value: Float, bold: Bool = false,
                            onChange: @escaping (Float) -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 7) {
                 Image(systemName: icon).font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.55)).frame(width: 14)
@@ -510,16 +511,16 @@ struct PopoverView: View {
                     .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.5))
             }
-            BrightnessSlider(value: value, onChange: onChange)
+            BrightnessSlider(value: value, label: "\(label) brightness", onChange: onChange)
         }
     }
 
     private func labeledSegment<T: Hashable>(_ label: String, selection: T,
         options: [(T, String)], onPick: @escaping (T) -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(label).font(.system(size: 10, weight: .bold)).tracking(0.6)
                 .foregroundStyle(.white.opacity(0.4))
-            SegmentedPicker(options: options, selection: selection, onPick: onPick)
+            SegmentedPicker(label: label, options: options, selection: selection, onPick: onPick)
         }
     }
 
@@ -532,10 +533,10 @@ struct PopoverView: View {
 
     @ViewBuilder
     private func card<C: View>(@ViewBuilder _ content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 13) { content() }
-            .padding(13)
-            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.white.opacity(0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).strokeBorder(.white.opacity(0.05), lineWidth: 1))
+        VStack(alignment: .leading, spacing: 8) { content() }
+            .padding(9)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.05), lineWidth: 1))
     }
 }
 
@@ -548,9 +549,9 @@ struct PopoverView: View {
 /// off track sat at a similar weight, so "on" was easy to misread at a glance.
 private struct WarmToggle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             configuration.label
-            Spacer(minLength: 8)
+            Spacer(minLength: 6)
             ZStack(alignment: configuration.isOn ? .trailing : .leading) {
                 Capsule()
                     .fill(configuration.isOn
@@ -560,17 +561,17 @@ private struct WarmToggle: ToggleStyle {
                     .overlay(Capsule().strokeBorder(
                         .white.opacity(configuration.isOn ? 0 : 0.09), lineWidth: 1))
                     .shadow(color: configuration.isOn ? .warm.opacity(0.32) : .clear, radius: 4, y: 1)
-                    .frame(width: 36, height: 21)
+                    .frame(width: 34, height: 19)
                 Circle()
                     .fill(.white)
-                    .frame(width: 17, height: 17)
+                    .frame(width: 15, height: 15)
                     .shadow(color: .black.opacity(0.3), radius: 1.5, y: 0.5)
                     .padding(.horizontal, 2)
             }
-            .frame(width: 36, height: 21)
+            .frame(width: 34, height: 19)
             .animation(.easeOut(duration: 0.16), value: configuration.isOn)
         }
-        // Whole row is the hit target, label included: a 36pt pill is a small
+        // Whole row is the hit target, label included: a 34pt pill is a small
         // thing to ask someone to hit, and the words next to it look clickable.
         .contentShape(Rectangle())
         .onTapGesture { configuration.$isOn.wrappedValue.toggle() }
@@ -578,31 +579,37 @@ private struct WarmToggle: ToggleStyle {
 }
 
 private struct SegmentedPicker<T: Hashable>: View {
+    let label: String
     let options: [(T, String)]
     let selection: T
     let onPick: (T) -> Void
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             ForEach(options, id: \.0) { option in
                 let selected = option.0 == selection
-                Text(option.1)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(selected ? Color.inkOnWarm : .white.opacity(0.62))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 7)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(selected ? AnyShapeStyle(LinearGradient(colors: [.warmHot, .warm], startPoint: .top, endPoint: .bottom))
-                                            : AnyShapeStyle(Color.clear))
-                            .shadow(color: selected ? .warm.opacity(0.3) : .clear, radius: 4, y: 1)
-                    )
-                    .contentShape(Rectangle())
-                    .onTapGesture { onPick(option.0) }
+                Button { onPick(option.0) } label: {
+                    Text(option.1)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(selected ? Color.inkOnWarm : .white.opacity(0.62))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 3)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(selected ? AnyShapeStyle(LinearGradient(colors: [.warmHot, .warm], startPoint: .top, endPoint: .bottom))
+                                                : AnyShapeStyle(Color.clear))
+                                .shadow(color: selected ? .warm.opacity(0.3) : .clear, radius: 4, y: 1)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel(Text("\(label): \(option.1)"))
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
-        .padding(4)
-        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.white.opacity(0.05)))
+        .padding(2)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.05)))
         .animation(.easeOut(duration: 0.15), value: selection)
     }
 }
@@ -625,6 +632,7 @@ private struct BrightnessSlider: View {
 
     var value: Float
     var tint: Tint = .brightness
+    var label: String
     var onChange: (Float) -> Void
     @State private var lastDetent: Int = -1
 
@@ -634,12 +642,12 @@ private struct BrightnessSlider: View {
                 Capsule().fill(.black.opacity(0.38))
                     .overlay(Capsule().strokeBorder(.white.opacity(0.06), lineWidth: 1))
                 Capsule().fill(LinearGradient(colors: tint.fill, startPoint: .top, endPoint: .bottom))
-                    .frame(width: max(30, geo.size.width * CGFloat(value)))
+                    .frame(width: max(23, geo.size.width * CGFloat(value)))
                     .shadow(color: .black.opacity(0.25), radius: 2.5, y: 1)
                 Image(systemName: tint.glyph)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Color(red: 0.55, green: 0.4, blue: 0.16))
-                    .padding(.leading, 9)
+                    .padding(.leading, 7)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -656,6 +664,16 @@ private struct BrightnessSlider: View {
                 .onEnded { _ in lastDetent = -1 }
             )
         }
-        .frame(height: 30)
+        .frame(height: 23)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(label))
+        .accessibilityValue(Text("\(Int((value * 100).rounded())) percent"))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: onChange(min(1, value + 1.0 / 16))
+            case .decrement: onChange(max(0, value - 1.0 / 16))
+            @unknown default: break
+            }
+        }
     }
 }
