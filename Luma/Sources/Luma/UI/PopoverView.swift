@@ -14,6 +14,7 @@ final class AppModel: ObservableObject {
 
     fileprivate(set) var controller: BrightnessController?
     private let store: Store
+    private var lastMasterValue: Float?
     /// Called after a popover-initiated brightness change so the menu bar
     /// icon can redraw (the engine paths go through Store.onChange instead).
     var onAdjust: (() -> Void)?
@@ -31,6 +32,7 @@ final class AppModel: ObservableObject {
     func refresh() {
         displays = store.displays.get()
         settings = store.settings.get()
+        if lastMasterValue == nil || !masterMixed { lastMasterValue = masterValue }
     }
 
     /// Non-excluded, controllable displays (what sliders and keys touch).
@@ -39,6 +41,12 @@ final class AppModel: ObservableObject {
     var masterValue: Float {
         active.isEmpty ? 0 : active.map(\.brightness).reduce(0, +) / Float(active.count)
     }
+
+    var masterMixed: Bool {
+        Set(active.map { Int(($0.brightness * 100).rounded()) }).count > 1
+    }
+
+    var masterDisplayValue: Float { masterMixed ? (lastMasterValue ?? masterValue) : masterValue }
 
     func setBrightness(id: CGDirectDisplayID, value: Float) {
         controller?.apply(id: id, value: value)
@@ -49,6 +57,7 @@ final class AppModel: ObservableObject {
     }
 
     func setAll(value: Float) {
+        lastMasterValue = value
         for display in active { setBrightness(id: display.id, value: value) }
     }
 
@@ -74,8 +83,8 @@ final class AppModel: ObservableObject {
         warmStrength = NightShift.strength
     }
 
-    func setWarmActive(_ on: Bool) {
-        NightShift.setWarmth(on: on, scheduled: warmth?.mode != .manual)
+    func setWarmEnabled(_ on: Bool) {
+        NightShift.setMasterEnabled(on, status: warmth ?? NightShift.Status())
         refreshWarmth()
     }
 
@@ -84,7 +93,18 @@ final class AppModel: ObservableObject {
     func setWarmStrength(_ value: Float) {
         warmStrength = value
         NightShift.setStrength(value)
-        if warmth?.isWarm == false { setWarmActive(true) }
+        if warmth?.isWarm == false { warmNow() }
+    }
+
+    func warmNow() {
+        NightShift.setWarmth(on: true, scheduled: warmth?.mode != .manual)
+        refreshWarmth()
+    }
+
+    func followCustomSchedule() {
+        guard let warmth, warmth.mode == .custom else { return }
+        NightShift.reconcile(mode: warmth.mode, from: warmth.from, to: warmth.to, enabled: warmth.enabled)
+        refreshWarmth()
     }
 
     /// Night Shift knows tonight's sunset and will not tell us, so we work
@@ -119,6 +139,9 @@ final class AppModel: ObservableObject {
     /// nudging a time can never drag the schedule back to Custom.
     func setWarmTimes(from: NightShift.Time, to: NightShift.Time) {
         NightShift.setSchedule(from: from, to: to)
+        if let warmth {
+            NightShift.reconcile(mode: warmth.mode, from: from, to: to, enabled: warmth.enabled)
+        }
         refreshWarmth()
     }
 
@@ -169,11 +192,12 @@ struct PopoverView: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        ViewThatFits(in: .vertical) {
-            panelContent
-            ScrollView(.vertical) { panelContent }
-        }
-        .frame(maxHeight: model.panelMaxHeight)
+        // One stable, top-origin root at every height. ViewThatFits swapped
+        // the entire tree when Warmth crossed the screen-height threshold,
+        // and NSHostingController briefly centred the new-height content in
+        // the old-height window, making the otherwise fixed toggle slide.
+        ScrollView(.vertical) { panelContent }
+            .frame(maxHeight: model.panelMaxHeight)
     }
 
     private var panelContent: some View {
@@ -185,7 +209,9 @@ struct PopoverView: View {
             card {
                 if model.active.count > 1 {
                     sliderRow(icon: "square.grid.2x2.fill", label: "All Displays",
-                              value: model.masterValue, bold: true) { model.setAll(value: $0) }
+                              value: model.masterDisplayValue, bold: true, mixed: model.masterMixed) {
+                        model.setAll(value: $0)
+                    }
                     divider
                 }
                 if model.active.isEmpty { emptyState }
@@ -238,7 +264,7 @@ struct PopoverView: View {
             Image(systemName: "sun.horizon.fill")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(LinearGradient(colors: [.warmHot, .warm], startPoint: .top, endPoint: .bottom))
-            Text("Luma").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+            Text("Luma").font(.system(size: 15, weight: .bold)).foregroundStyle(.primary)
             if model.isPrerelease {
                 Text("BETA")
                     .font(.system(size: 8.5, weight: .heavy)).tracking(0.6)
@@ -248,7 +274,7 @@ struct PopoverView: View {
             }
             Spacer()
             Text("\(model.displays.count) display\(model.displays.count == 1 ? "" : "s")")
-                .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.4))
+                .font(.system(size: 11, weight: .medium)).foregroundStyle(Color.primary.opacity(0.55))
             settingsMenu
         }
         .padding(.horizontal, 2)
@@ -278,7 +304,7 @@ struct PopoverView: View {
         } label: {
             Image(systemName: "gearshape.fill")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(Color.primary.opacity(0.55))
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -292,7 +318,7 @@ struct PopoverView: View {
         HStack(spacing: 6) {
             Text("Version \(model.versionDisplay)")
                 .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(.white.opacity(0.35))
+                .foregroundStyle(Color.primary.opacity(0.5))
             Spacer()
             Button("What's new") { NSWorkspace.shared.open(Updater.changelogPage) }
                 .buttonStyle(.plain)
@@ -302,7 +328,7 @@ struct PopoverView: View {
         .padding(.horizontal, 3)
     }
 
-    private var divider: some View { Rectangle().fill(.white.opacity(0.06)).frame(height: 1) }
+    private var divider: some View { Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1) }
 
     /// Drawn in Luma's own hand (a sunless horizon) and naming the actual fix,
     /// instead of the old dead-end "No controllable displays found."
@@ -313,27 +339,27 @@ struct PopoverView: View {
         VStack(spacing: 5) {
             Image(systemName: "sun.horizon")
                 .font(.system(size: 26, weight: .light))
-                .foregroundStyle(.white.opacity(0.35))
+                .foregroundStyle(Color.primary.opacity(0.35))
             if model.displays.isEmpty {
                 Text("Looking for displays…")
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.primary.opacity(0.9))
                 Text("Scanning DDC over I²C. This can take a moment on Apple Silicon.")
-                    .font(.system(size: 11.5)).foregroundStyle(.white.opacity(0.55))
+                    .font(.system(size: 11.5)).foregroundStyle(Color.primary.opacity(0.55))
             } else if excludedCount == model.displays.count {
                 Text("Every display is excluded")
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.primary.opacity(0.9))
                 Text("Keys and sliders have nothing to touch. Un-exclude one from the tray menu (right-click the icon).")
-                    .font(.system(size: 11.5)).foregroundStyle(.white.opacity(0.55))
+                    .font(.system(size: 11.5)).foregroundStyle(Color.primary.opacity(0.55))
             } else if !failing.isEmpty {
                 Text("This monitor won't answer")
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.primary.opacity(0.9))
                 Text("DDC/CI may be off in its on-screen menu, or it's behind a DisplayLink dock.")
-                    .font(.system(size: 11.5)).foregroundStyle(.white.opacity(0.55))
+                    .font(.system(size: 11.5)).foregroundStyle(Color.primary.opacity(0.55))
             } else {
                 Text("No controllable displays")
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.primary.opacity(0.9))
                 Text("Nothing here responds to brightness control yet.")
-                    .font(.system(size: 11.5)).foregroundStyle(.white.opacity(0.55))
+                    .font(.system(size: 11.5)).foregroundStyle(Color.primary.opacity(0.55))
             }
             Button(action: { model.controller?.scheduleRescan() }) {
                 Text("Reconnect").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.inkOnWarm)
@@ -353,11 +379,11 @@ struct PopoverView: View {
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text("Brightness for every display.")
-                .font(.system(size: 13.5, weight: .bold)).foregroundStyle(.white)
+                .font(.system(size: 13.5, weight: .bold)).foregroundStyle(.primary)
             Text(model.axTrusted
                  ? "You're set. Press a brightness key — every screen moves, and a HUD confirms it."
                  : "Drag a slider to try it now. To use your brightness keys, grant Accessibility below.")
-                .font(.system(size: 12)).foregroundStyle(.white.opacity(0.72))
+                .font(.system(size: 12)).foregroundStyle(Color.primary.opacity(0.72))
                 .fixedSize(horizontal: false, vertical: true)
             Button(action: { model.updateSettings { $0.hasOnboarded = true } }) {
                 Text("Got it").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.inkOnWarm)
@@ -376,9 +402,9 @@ struct PopoverView: View {
     private var axBanner: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text("Enable keyboard keys")
-                .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white)
+                .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.primary)
             Text("Luma needs Accessibility to intercept brightness keys.")
-                .font(.system(size: 11.5)).foregroundStyle(.white.opacity(0.7)).fixedSize(horizontal: false, vertical: true)
+                .font(.system(size: 11.5)).foregroundStyle(Color.primary.opacity(0.7)).fixedSize(horizontal: false, vertical: true)
             // User-initiated prompt() (main thread) reliably registers Luma in
             // the list and shows the dialog; openSystemSettings is the fallback.
             Button(action: { if !Accessibility.prompt() { Accessibility.openSystemSettings() } }) {
@@ -396,122 +422,143 @@ struct PopoverView: View {
 
     /// Warmth is macOS's Night Shift, not a gamma layer of our own, so this
     /// card is a remote control for state that lives outside Luma. The toggle
-    /// is always live; the settings below stay put and dim when warmth is off
-    /// rather than collapsing, so the card never changes height and the panel
-    /// never has to resize (which is what made the toggle jump).
+    /// is always live; everything it controls is revealed beneath it.
     private func warmthCard(_ warmth: NightShift.Status) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle(isOn: Binding(get: { warmth.isWarm }, set: { model.setWarmActive($0) })) {
+            Toggle(isOn: Binding(get: { warmth.enabled }, set: { model.setWarmEnabled($0) })) {
                 HStack(spacing: 7) {
-                    Image(systemName: "moon.fill").font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.55)).frame(width: 14)
+                    Image(systemName: warmth.enabled ? "sunset.fill" : "sunset")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(warmth.enabled ? Color.warm : Color.primary.opacity(0.55))
+                        .frame(width: 14)
                     Text("Warmth").font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.92))
+                        .foregroundStyle(Color.primary.opacity(0.92))
                 }
             }
             .toggleStyle(WarmToggle())
 
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack {
-                        Spacer()
-                        Text("\(Int((model.warmStrength * 100).rounded()))%  ·  \(NightShift.kelvin(for: model.warmStrength))K")
-                            .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-                    BrightnessSlider(value: model.warmStrength, tint: .warmth,
-                                     label: "Warmth") { model.setWarmStrength($0) }
-                }
-
-                labeledSegment("SCHEDULE", selection: warmth.mode,
-                    options: [(NightShift.Mode.manual, "Off"),
-                              (.sunsetToSunrise, "Sunset"),
-                              (.custom, "Custom")]) { model.setWarmSchedule($0) }
-
-                // Every mode fills the same space, so switching modes
-                // never resizes the card either.
-                Group {
-                    switch warmth.mode {
-                    case .custom:
-                        HStack(spacing: 8) {
-                            timeField("FROM", warmth.from) { model.setWarmTimes(from: $0, to: warmth.to) }
-                            timeField("TO", warmth.to) { model.setWarmTimes(from: warmth.from, to: $0) }
+            Group {
+                if warmth.enabled {
+                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Spacer()
+                                Text("\(Int((model.warmStrength * 100).rounded()))%  ·  \(NightShift.kelvin(for: model.warmStrength))K")
+                                    .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
+                                    .foregroundStyle(Color.primary.opacity(0.6))
+                            }
+                            BrightnessSlider(value: model.warmStrength, tint: .warmth,
+                                             label: "Warmth", highlighted: warmth.isWarm) {
+                                model.setWarmStrength($0)
+                            }
                         }
-                    case .sunsetToSunrise:
-                        scheduleNote(model.sunsetLine(permitted: warmth.sunSchedulePermitted))
-                    case .manual:
-                        scheduleNote("No schedule. Warmth stays where you leave it.")
+
+                        labeledSegment("SCHEDULE", selection: warmth.mode,
+                            options: [(NightShift.Mode.manual, "None"),
+                                      (.sunsetToSunrise, "Sunset"),
+                                      (.custom, "Custom")]) { model.setWarmSchedule($0) }
+
+                        if warmth.mode == .custom {
+                            HStack(spacing: 12) {
+                                timeField("FROM", warmth.from) { model.setWarmTimes(from: $0, to: warmth.to) }
+                                timeField("TO", warmth.to) { model.setWarmTimes(from: warmth.from, to: $0) }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(Color.primary.opacity(0.05))
+                            )
+                            if !NightShift.customScheduleIsActiveNow(from: warmth.from, to: warmth.to) {
+                                toggleRow("Warm now", isOn: Binding(
+                                    get: { warmth.isWarm },
+                                    set: { on in
+                                        if on { model.warmNow() }
+                                        else { model.followCustomSchedule() }
+                                    }
+                                ))
+                            }
+                        } else if warmth.mode == .sunsetToSunrise {
+                            scheduleNote(model.sunsetLine(permitted: warmth.sunSchedulePermitted))
+                        }
                     }
+                    .transition(.opacity)
                 }
-                .frame(height: 24)
             }
-            .opacity(warmth.isWarm ? 1 : 0.45)
+            .clipped()
+            .animation(.easeInOut(duration: 0.18), value: warmth.enabled)
         }
     }
 
-    /// Deliberately not a DatePicker. The popover is a non-activating panel
-    /// that refuses to become key, and a `.field` DatePicker is a focus-hungry
-    /// AppKit text control: dropped in here it claimed the field editor,
-    /// swallowed mouse events for the whole card, and sent keystrokes nowhere.
-    /// Every other control in this panel is drawn by us for the same reason.
+    /// A text-entry DatePicker needs a field editor and would make this
+    /// non-activating panel steal focus. Menu pickers remain keyboard-free
+    /// while allowing direct selection instead of repeated stepping.
     private func timeField(_ label: String, _ time: NightShift.Time,
                            onChange: @escaping (NightShift.Time) -> Void) -> some View {
-        HStack(spacing: 5) {
+        let minutes = Array(Set(stride(from: 0, to: 60, by: 5)).union([time.minute])).sorted()
+        return VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.system(size: 10, weight: .bold)).tracking(0.5)
-                .foregroundStyle(.white.opacity(0.4))
-            Text(String(format: "%02d:%02d", time.hour, time.minute))
-                .font(.system(size: 12.5, weight: .semibold).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.92))
-            Spacer(minLength: 2)
-            // Quarter-hour steps: enough resolution for a sunset, and it puts
-            // a whole day inside a few taps.
-            VStack(spacing: 2) {
-                stepArrow("chevron.up", label: "Increase \(label) time") {
-                    onChange(time.advanced(byMinutes: 15))
+                .foregroundStyle(Color.primary.opacity(0.55))
+                .fixedSize()
+            HStack(spacing: 3) {
+                Picker("Hour", selection: Binding(
+                    get: { time.hour },
+                    set: { onChange(.init(hour: $0, minute: time.minute)) }
+                )) {
+                    ForEach(0..<24, id: \.self) { hour in
+                        Text(String(format: "%02d", hour)).tag(hour)
+                    }
                 }
-                stepArrow("chevron.down", label: "Decrease \(label) time") {
-                    onChange(time.advanced(byMinutes: -15))
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel(Text("\(label) hour"))
+
+                Text(":")
+                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
+
+                Picker("Minute", selection: Binding(
+                    get: { time.minute },
+                    set: { onChange(.init(hour: time.hour, minute: $0)) }
+                )) {
+                    ForEach(minutes, id: \.self) { minute in
+                        Text(String(format: "%02d", minute)).tag(minute)
+                    }
                 }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel(Text("\(label) minute"))
             }
+            .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(.horizontal, 7)
-        .frame(maxWidth: .infinity, minHeight: 24)
-        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.05)))
+        .frame(maxWidth: .infinity)
     }
 
     private func scheduleNote(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 11)).foregroundStyle(.white.opacity(0.42))
+            .font(.system(size: 11)).foregroundStyle(Color.primary.opacity(0.58))
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func stepArrow(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 7, weight: .black))
-                .foregroundStyle(.white.opacity(0.55))
-                .frame(width: 16, height: 9)
-                .background(RoundedRectangle(cornerRadius: 3, style: .continuous).fill(.white.opacity(0.07)))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(label))
-    }
-
     private func sliderRow(icon: String, label: String, value: Float, bold: Bool = false,
+                           mixed: Bool = false,
                            onChange: @escaping (Float) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 7) {
                 Image(systemName: icon).font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.55)).frame(width: 14)
+                    .foregroundStyle(Color.primary.opacity(0.55)).frame(width: 14)
                 Text(label).font(.system(size: 12.5, weight: bold ? .bold : .semibold))
-                    .foregroundStyle(.white.opacity(bold ? 1 : 0.92)).lineLimit(1)
+                    .foregroundStyle(Color.primary.opacity(bold ? 1 : 0.92)).lineLimit(1)
                 Spacer()
-                Text("\(Int((value * 100).rounded()))%")
+                Text(mixed ? "Mixed" : "\(Int((value * 100).rounded()))%")
                     .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(Color.primary.opacity(0.6))
             }
-            BrightnessSlider(value: value, label: "\(label) brightness", onChange: onChange)
+            BrightnessSlider(value: value, label: "\(label) brightness",
+                             mixed: mixed, onChange: onChange)
         }
     }
 
@@ -519,14 +566,14 @@ struct PopoverView: View {
         options: [(T, String)], onPick: @escaping (T) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label).font(.system(size: 10, weight: .bold)).tracking(0.6)
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(Color.primary.opacity(0.55))
             SegmentedPicker(label: label, options: options, selection: selection, onPick: onPick)
         }
     }
 
     private func toggleRow(_ label: String, isOn: Binding<Bool>) -> some View {
         Toggle(isOn: isOn) {
-            Text(label).font(.system(size: 12.5, weight: .medium)).foregroundStyle(.white.opacity(0.92))
+            Text(label).font(.system(size: 12.5, weight: .medium)).foregroundStyle(Color.primary.opacity(0.92))
         }
         .toggleStyle(WarmToggle())
     }
@@ -535,8 +582,8 @@ struct PopoverView: View {
     private func card<C: View>(@ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 8) { content() }
             .padding(9)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.05), lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.primary.opacity(0.07), lineWidth: 1))
     }
 }
 
@@ -552,24 +599,25 @@ private struct WarmToggle: ToggleStyle {
         HStack(spacing: 8) {
             configuration.label
             Spacer(minLength: 6)
-            ZStack(alignment: configuration.isOn ? .trailing : .leading) {
+            ZStack(alignment: .leading) {
                 Capsule()
                     .fill(configuration.isOn
                           ? AnyShapeStyle(LinearGradient(colors: [.warmHot, .warm],
                                                          startPoint: .top, endPoint: .bottom))
-                          : AnyShapeStyle(Color.white.opacity(0.10)))
+                          : AnyShapeStyle(Color.primary.opacity(0.10)))
                     .overlay(Capsule().strokeBorder(
-                        .white.opacity(configuration.isOn ? 0 : 0.09), lineWidth: 1))
+                        Color.primary.opacity(configuration.isOn ? 0 : 0.09), lineWidth: 1))
                     .shadow(color: configuration.isOn ? .warm.opacity(0.32) : .clear, radius: 4, y: 1)
                     .frame(width: 34, height: 19)
+                    .animation(.easeOut(duration: 0.16), value: configuration.isOn)
                 Circle()
                     .fill(.white)
                     .frame(width: 15, height: 15)
                     .shadow(color: .black.opacity(0.3), radius: 1.5, y: 0.5)
-                    .padding(.horizontal, 2)
+                    .offset(x: configuration.isOn ? 17 : 2)
+                    .animation(.easeOut(duration: 0.16), value: configuration.isOn)
             }
             .frame(width: 34, height: 19)
-            .animation(.easeOut(duration: 0.16), value: configuration.isOn)
         }
         // Whole row is the hit target, label included: a 34pt pill is a small
         // thing to ask someone to hit, and the words next to it look clickable.
@@ -591,7 +639,7 @@ private struct SegmentedPicker<T: Hashable>: View {
                 Button { onPick(option.0) } label: {
                     Text(option.1)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(selected ? Color.inkOnWarm : .white.opacity(0.62))
+                        .foregroundStyle(selected ? Color.inkOnWarm : Color.primary.opacity(0.62))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 3)
                         .background(
@@ -609,45 +657,64 @@ private struct SegmentedPicker<T: Hashable>: View {
             }
         }
         .padding(2)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.05)))
         .animation(.easeOut(duration: 0.15), value: selection)
     }
 }
 
-/// Control Center-style slider: white-fill capsule with a warm sun glyph on a
-/// recessed track, draggable anywhere along its length.
+/// Compact slider with a visible knob, draggable anywhere along its track.
 private struct BrightnessSlider: View {
-    /// Brightness fills white; warmth fills the amber it actually produces,
-    /// so the two sliders never get mistaken for each other at a glance.
+    /// The glyph keeps brightness and warmth distinct on the shared track.
     enum Tint {
         case brightness, warmth
-        var fill: [Color] {
-            switch self {
-            case .brightness: [.white, Color(white: 0.9)]
-            case .warmth: [Color(red: 1.0, green: 0.86, blue: 0.63), Color(red: 1.0, green: 0.55, blue: 0.20)]
-            }
-        }
-        var glyph: String { self == .brightness ? "sun.max.fill" : "moon.fill" }
+        var glyph: String { self == .brightness ? "sun.max.fill" : "sunset.fill" }
     }
 
     var value: Float
     var tint: Tint = .brightness
     var label: String
+    var mixed = false
+    var highlighted = true
     var onChange: (Float) -> Void
     @State private var lastDetent: Int = -1
 
     var body: some View {
         GeometryReader { geo in
+            let knobSize: CGFloat = 23
+            let percent = Int((value * 100).rounded())
+            let displayValue: Float = percent == 100 ? 1 : percent == 0 ? 0 : value
+            let position = CGFloat(displayValue)
+            let travel = geo.size.width - knobSize
+            let active = highlighted && !mixed
+            let fillWidth = position * travel + knobSize
+
             ZStack(alignment: .leading) {
-                Capsule().fill(.black.opacity(0.38))
-                    .overlay(Capsule().strokeBorder(.white.opacity(0.06), lineWidth: 1))
-                Capsule().fill(LinearGradient(colors: tint.fill, startPoint: .top, endPoint: .bottom))
-                    .frame(width: max(23, geo.size.width * CGFloat(value)))
-                    .shadow(color: .black.opacity(0.25), radius: 2.5, y: 1)
+                Capsule().fill(Color.primary.opacity(0.08))
+                    .overlay(Capsule().strokeBorder(Color.primary.opacity(0.10), lineWidth: 1))
+                ZStack {
+                    Capsule().fill(Color.gray.opacity(0.48))
+                        .opacity(active ? 0 : 1)
+                        .animation(.easeInOut(duration: 0.22), value: active)
+                    Capsule().fill(LinearGradient(colors: [.warmHot, .warm],
+                                                  startPoint: .top, endPoint: .bottom))
+                        .opacity(active ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.22), value: active)
+                }
+                // Keep width outside the animated color layers: mixed ↔ active
+                // must snap to its value while only the fill colour cross-fades.
+                .frame(width: fillWidth)
                 Image(systemName: tint.glyph)
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Color(red: 0.55, green: 0.4, blue: 0.16))
+                    .foregroundStyle(active ? Color.inkOnWarm.opacity(0.75) : Color.primary.opacity(0.58))
                     .padding(.leading, 7)
+                Circle()
+                    .fill(Color.white)
+                    .overlay(Circle().strokeBorder(
+                        active ? Color.black.opacity(0.16) : Color.primary.opacity(0.22),
+                        lineWidth: 1))
+                    .shadow(color: .black.opacity(0.3), radius: 1.5, y: 0.5)
+                    .frame(width: knobSize, height: knobSize)
+                    .offset(x: position * travel)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -667,7 +734,8 @@ private struct BrightnessSlider: View {
         .frame(height: 23)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(label))
-        .accessibilityValue(Text("\(Int((value * 100).rounded())) percent"))
+        .accessibilityValue(Text(mixed ? "Mixed" : "\(Int((value * 100).rounded())) percent"))
+        .accessibilityHint(Text(mixed ? "Adjust to set all displays to the same brightness" : ""))
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment: onChange(min(1, value + 1.0 / 16))

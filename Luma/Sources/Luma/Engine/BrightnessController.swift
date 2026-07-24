@@ -79,7 +79,13 @@ final class BrightnessController {
                     // rememberLevel + writeFailed.
                     ddc.set(id, backlight)
                 }
-                if gamma < 1 { GammaDimmer.set(id, factor: gamma) } else { GammaDimmer.clear(id) }
+                // Leave the display pipeline alone during normal hardware
+                // brightness changes. Rewriting an identity gamma table on
+                // every drag is unnecessary and can visibly disturb colour
+                // handling even though the requested factor is 1.
+                if subZero {
+                    if gamma < 1 { GammaDimmer.set(id, factor: gamma) } else { GammaDimmer.clear(id) }
+                }
             case .gamma:
                 // Software-only: the whole slider is gamma.
                 GammaDimmer.set(id, factor: GammaDimmer.floor + value * (1 - GammaDimmer.floor))
@@ -107,7 +113,15 @@ final class BrightnessController {
     /// the live sub-zero setting) — used when sub-zero is toggled, and after
     /// wake/reconfigure resets the gamma tables.
     func reapplyAllLevels() {
-        for d in store.displays.get() where d.backend != .none {
+        let displays = store.displays.get()
+        if !store.settings.get().subZero {
+            // Clear a previous sub-zero factor once when the feature is
+            // disabled, not on every subsequent hardware slider update.
+            for d in displays where d.backend == .apple || d.backend == .ddc {
+                GammaDimmer.clear(d.id)
+            }
+        }
+        for d in displays where d.backend != .none {
             apply(id: d.id, value: d.brightness)
         }
         store.notifyChanged()

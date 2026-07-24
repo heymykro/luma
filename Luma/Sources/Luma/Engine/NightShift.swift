@@ -47,6 +47,28 @@ enum NightShift {
         }
     }
 
+    /// Half-open interval matching: the start minute is warm, the end minute
+    /// is not. A later start than end crosses midnight; equal times are an
+    /// empty schedule rather than an accidental 24-hour one.
+    static func customScheduleContains(_ now: Time, from: Time, to: Time) -> Bool {
+        let minute = now.minutesSinceMidnight
+        let start = from.minutesSinceMidnight
+        let end = to.minutesSinceMidnight
+        guard start != end else { return false }
+        return start < end
+            ? minute >= start && minute < end
+            : minute >= start || minute < end
+    }
+
+    static func customScheduleIsActiveNow(from: Time, to: Time) -> Bool {
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: Date())
+        return customScheduleContains(
+            Time(hour: parts.hour ?? 0, minute: parts.minute ?? 0),
+            from: from,
+            to: to
+        )
+    }
+
     struct Status: Equatable {
         /// Warmth applying right now. Necessary but NOT sufficient: with
         /// `enabled` false the screen stays neutral no matter what this says.
@@ -210,21 +232,43 @@ enum NightShift {
         return withUnsafeBytes(of: &payload) { set(c, Selector(("setSchedule:")), $0.baseAddress!) }
     }
 
-    /// The schedule picker sets the mode, and arms it when there is one to
-    /// arm. "Off" means no schedule, not no warmth, so warmth that was on
-    /// stays on: `setMode(.manual)` clears the master switch as a side effect,
-    /// which is precisely why picking Off used to kill warmth outright.
-    /// Re-asserting it afterwards sticks.
-    static func applySchedule(_ mode: Mode, from: Time, to: Time) {
-        let wasOn = status()?.active ?? false
-        if mode == .custom { setSchedule(from: from, to: to) }
-        setMode(mode)
-        if mode == .manual { setEnabled(wasOn) } else { setEnabled(true) }
+    /// Makes the current state agree with the selected schedule. macOS owns
+    /// the sunrise/sunset calculation; Custom is simple enough to reconcile
+    /// here so editing a time takes effect immediately.
+    static func reconcile(mode: Mode, from: Time, to: Time, enabled: Bool) {
+        guard enabled else {
+            setActive(false)
+            return
+        }
+        switch mode {
+        case .manual:
+            setActive(true)
+        case .custom:
+            setActive(customScheduleIsActiveNow(from: from, to: to))
+        case .sunsetToSunrise:
+            break
+        }
     }
 
-    /// The warmth toggle. Turning it ON always renders: both flags set, no
-    /// matter the schedule, because "warm now" that leaves the screen neutral
-    /// is exactly the bug this replaces.
+    /// The top toggle is the feature's master switch. With a schedule it arms
+    /// that schedule; without one it means continuously warm.
+    static func setMasterEnabled(_ on: Bool, status: Status) {
+        setEnabled(on)
+        reconcile(mode: status.mode, from: status.from, to: status.to, enabled: on)
+    }
+
+    /// Picking a schedule never silently enables the feature. `setMode:`
+    /// clears the master switch, so preserve and re-assert its previous state.
+    static func applySchedule(_ mode: Mode, from: Time, to: Time) {
+        let wasEnabled = status()?.enabled ?? false
+        if mode == .custom { setSchedule(from: from, to: to) }
+        setMode(mode)
+        setEnabled(wasEnabled)
+        reconcile(mode: mode, from: from, to: to, enabled: wasEnabled)
+    }
+
+    /// An explicit "warm now" command. Turning it ON always renders: both
+    /// flags set, no matter the schedule.
     ///
     /// Turning it OFF depends on whether a schedule is armed. With one, off
     /// means "off until the next scheduled change", so the master switch

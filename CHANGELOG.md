@@ -5,6 +5,24 @@ All notable changes to Luma are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and Luma uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-beta.2] - 2026-07-24
+
+_Native brightness stays native, with a clearer panel for mixed displays and warmth._
+
+### Changed
+
+- **Mixed display brightness is explicit.** Adjusting one monitor now leaves **All Displays** at its last setting and labels it **Mixed**, instead of moving the master slider to an unexplained average. Touching the master makes every display agree again.
+- **The panel follows macOS appearance.** Light and dark modes now use adaptive materials, text, borders, sliders, and controls rather than a dark-only HUD treatment.
+- **Warmth has one master switch.** Turning Warmth on arms its selected schedule; turning it off disables warmth and its schedule. A **Warm now** switch temporarily overrides a custom schedule without deleting it.
+- **Custom times are easier to set.** Hour and minute menus replace repeated 15-minute stepping, with larger click targets and five-minute precision.
+
+### Fixed
+
+- **Normal Apple and DDC brightness changes no longer rewrite the display's gamma table.** Gamma is touched only for sub-zero dimming or a software-only display, so hardware-backed displays continue through their native brightness path.
+- Custom warmth schedules now reconcile immediately when their mode or times change, including schedules that cross midnight.
+- The panel stays anchored at the menu bar while Warmth expands or collapses; its toggle no longer slides out of place.
+- Slider fills, thumbs, mixed states, and colour transitions now stay aligned at every value, including 100%.
+
 ## [0.2.0-beta.1] - 2026-07-23
 
 _Screen warmth, driven through macOS Night Shift._

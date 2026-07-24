@@ -39,6 +39,24 @@ check("a full day is a no-op", t.advanced(byMinutes: 1440) == t)
 check("22:00 on 15m -> 22:15", NightShift.Time(hour: 22, minute: 0)
         .advanced(byMinutes: 15) == .init(hour: 22, minute: 15))
 
+// Custom schedules take effect immediately when their times change.
+let dayStart = NightShift.Time(hour: 9, minute: 0)
+let dayEnd = NightShift.Time(hour: 17, minute: 0)
+let nightStart = NightShift.Time(hour: 22, minute: 0)
+let nightEnd = NightShift.Time(hour: 7, minute: 0)
+check("day schedule includes its start",
+      NightShift.customScheduleContains(.init(hour: 9, minute: 0), from: dayStart, to: dayEnd))
+check("day schedule excludes its end",
+      !NightShift.customScheduleContains(.init(hour: 17, minute: 0), from: dayStart, to: dayEnd))
+check("overnight schedule includes late evening",
+      NightShift.customScheduleContains(.init(hour: 23, minute: 0), from: nightStart, to: nightEnd))
+check("overnight schedule includes early morning",
+      NightShift.customScheduleContains(.init(hour: 6, minute: 0), from: nightStart, to: nightEnd))
+check("overnight schedule excludes daytime",
+      !NightShift.customScheduleContains(.init(hour: 12, minute: 0), from: nightStart, to: nightEnd))
+check("equal times are an empty schedule",
+      !NightShift.customScheduleContains(dayStart, from: dayStart, to: dayStart))
+
 // ── solar maths ────────────────────────────────────────────────────────
 // Checked against invariants rather than an almanac, because an almanac
 // figure I half-remember is not evidence. Day lengths at the solstices are
@@ -117,6 +135,7 @@ check("strength reads back", abs(NightShift.strength - 0.42) < 0.001)
 RunLoop.main.run(until: Date().addingTimeInterval(0.4))
 print("       (that write notified \(notifications - beforeStrengthWrites)x)")
 
+NightShift.setEnabled(true)
 NightShift.applySchedule(.custom, from: .init(hour: 21, minute: 15), to: .init(hour: 6, minute: 45))
 usleep(400_000)
 let scheduled = NightShift.status()
@@ -124,12 +143,11 @@ check("custom schedule round-trips",
       scheduled?.mode == .custom
       && scheduled?.from == NightShift.Time(hour: 21, minute: 15)
       && scheduled?.to == NightShift.Time(hour: 6, minute: 45))
-check("custom mode arms the schedule", scheduled?.enabled == true)
+check("custom mode preserves the master switch", scheduled?.enabled == true)
 
-// The one that took a human looking at a screen to settle: with no schedule,
-// `enabled` is the master switch, and warmth renders only when it is true.
-// setMode(.manual) clears it as a side effect, so switching the schedule off
-// while warmth is on has to put it back or the screen goes neutral.
+// With no schedule, `enabled` is the master switch and warmth renders only
+// when it is true. setMode(.manual) clears it as a side effect, so switching
+// the schedule off has to put the user's master state back.
 NightShift.setWarmth(on: true, scheduled: false); usleep(300_000)
 NightShift.applySchedule(.manual, from: before.from, to: before.to)
 usleep(400_000)

@@ -7,11 +7,11 @@ brightness keys to the built-in panel first, and hides Apple-external control
 behind a Ctrl+key shortcut that custom keyboards can't even send. Luma is a
 small, free, open-source menu-bar app that just does the thing:
 
-- **Per-display sliders + an "All Displays" master slider** in a menu-bar popover (no dock icon).
+- **Per-display sliders + an "All Displays" master slider** in an adaptive light/dark menu-bar popover (no dock icon). When displays differ, the master says **Mixed** and stays where you last left it instead of showing a misleading average.
 - **Keyboard brightness keys work on every display**: route them to *all displays* or *the display under your mouse pointer*; hold a modifier (**⌥** by default, configurable: ⌥/⌃/⇧/⌘) to temporarily use the other routing.
 - **All display types**: built-in panels and Apple displays (Studio Display, Pro Display XDR, UltraFine) via Apple's native brightness path, everything else via DDC/CI on Apple Silicon.
 - Works with **any keyboard**: standard brightness keys (HID consumer usages), Apple-style media keys (including rotary knobs on QMK/VIA boards), and optional F14/F15 legacy keys.
-- **Warmth**: macOS Night Shift on a slider, with its schedule (off, sunset to sunrise, or custom times) in the same panel, and tonight's actual sunset and sunrise beside it. Driven through the OS rather than a second gamma layer, so it composes with sub-zero dimming.
+- **Warmth**: macOS Night Shift on a slider, with a master switch, sunset-to-sunrise or custom scheduling, a temporary **Warm now** override, and tonight's actual sunset and sunrise beside it. Driven through the OS rather than a second gamma layer, so it composes with sub-zero dimming.
 - **Sub-zero dimming**: keep going past the hardware backlight floor via the display's gamma table, which also covers displays with no DDC at all.
 - **Profiles**: named per-display snapshots ("Day", "Movie"), applied from the tray or a `luma://` URL.
 - **`luma://` URL scheme**: `set`, `up`, `down`, `warm`, `profile/<name>`, `pause`. Drives Shortcuts, Raycast, or a shell script today.
@@ -82,7 +82,7 @@ and read the comment first.
 
 | Display | Path |
 |---|---|
-| Built-in panel, Apple Studio Display, Pro Display XDR, LG UltraFine | `DisplayServices.framework` (private API, same path Control Center uses), loaded at runtime |
+| Built-in panel, Apple Studio Display, Pro Display XDR, LG UltraFine | `DisplayServices.framework` (private API, same path Control Center uses), loaded at runtime; gamma is untouched unless sub-zero dimming is enabled |
 | Other external monitors | DDC/CI over I²C via `IOAVService` (Apple Silicon), resolved at runtime |
 
 Keyboard interception is an active `CGEventTap` that consumes brightness key

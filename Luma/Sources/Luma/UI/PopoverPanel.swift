@@ -1,12 +1,12 @@
 import AppKit
 import SwiftUI
 
-/// HUD-material vibrancy as a SwiftUI background, so the whole popover is one
+/// Adaptive popover vibrancy as a SwiftUI background, so the whole panel is one
 /// auto-sized view; oversized content scrolls within the current screen.
 struct HUDBackground: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let v = NSVisualEffectView()
-        v.material = .hudWindow
+        v.material = .popover
         v.blendingMode = .behindWindow
         v.state = .active
         v.wantsLayer = true
@@ -19,7 +19,7 @@ struct HUDBackground: NSViewRepresentable {
 }
 
 /// The tray popover: a non-activating panel (never steals focus from the app
-/// you're in — the reason this isn't an NSPopover) with HUD-material
+/// you're in — the reason this isn't an NSPopover) with adaptive popover
 /// vibrancy, shown under the status item, hidden on any outside click.
 final class PopoverPanel: NSPanel {
     private let model: AppModel
@@ -43,10 +43,6 @@ final class PopoverPanel: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = true
-        // The popover is a deliberately dark, HUD-material surface; pin dark
-        // appearance so the white-on-vibrancy design stays legible even when
-        // the system is in light mode.
-        appearance = NSAppearance(named: .darkAqua)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         becomesKeyOnlyIfNeeded = true
 
@@ -54,6 +50,8 @@ final class PopoverPanel: NSPanel {
         // SwiftUI content's size automatically.
         let controller = NSHostingController(
             rootView: PopoverView(model: model)
+                .background(RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Color(nsColor: .windowBackgroundColor).opacity(0.84)))
                 .background(HUDBackground())
         )
         controller.sizingOptions = [.preferredContentSize]
@@ -64,8 +62,10 @@ final class PopoverPanel: NSPanel {
     /// popover hangs from the menu bar rather than being centred on its origin.
     override func setContentSize(_ size: NSSize) {
         let top = frame.maxY
-        super.setContentSize(size)
-        setFrameTopLeftPoint(NSPoint(x: frame.minX, y: top))
+        let nextSize = frameRect(forContentRect: NSRect(origin: .zero, size: size)).size
+        let nextFrame = NSRect(x: frame.minX, y: top - nextSize.height,
+                               width: nextSize.width, height: nextSize.height)
+        super.setFrame(nextFrame, display: isVisible, animate: false)
     }
 
     /// Toggle below the status item button.
